@@ -14,6 +14,8 @@
 		3FA16AC12CBE35F4008BD48A /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC02CBE35F4008BD48A /* TerminalView.swift */; };
 		3FA16AC32CBE36D9008BD48A /* TerminalRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC22CBE36D9008BD48A /* TerminalRepresentable.swift */; };
 		3FA16AC62CBE3A46008BD48A /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FA16AC52CBE3A46008BD48A /* CoreText.framework */; };
+		3FA16AC82CBF8854008BD48A /* TerminalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC72CBF8854008BD48A /* TerminalBuffer.swift */; };
+		3FA16ACC2CC0871F008BD48A /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 3FA16ACB2CC0871F008BD48A /* README.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +28,8 @@
 		3FA16AC02CBE35F4008BD48A /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		3FA16AC22CBE36D9008BD48A /* TerminalRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRepresentable.swift; sourceTree = "<group>"; };
 		3FA16AC52CBE3A46008BD48A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
+		3FA16AC72CBF8854008BD48A /* TerminalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalBuffer.swift; sourceTree = "<group>"; };
+		3FA16ACB2CC0871F008BD48A /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +47,7 @@
 		3FA16AA52CBE35A2008BD48A = {
 			isa = PBXGroup;
 			children = (
+				3FA16ACB2CC0871F008BD48A /* README.md */,
 				3FA16AB02CBE35A2008BD48A /* mt */,
 				3FA16AAF2CBE35A2008BD48A /* Products */,
 				3FA16AC42CBE3A46008BD48A /* Frameworks */,
@@ -62,8 +67,8 @@
 			children = (
 				3FA16AB12CBE35A2008BD48A /* mtApp.swift */,
 				3FA16AB32CBE35A2008BD48A /* ContentView.swift */,
-				3FA16AC02CBE35F4008BD48A /* TerminalView.swift */,
-				3FA16AC22CBE36D9008BD48A /* TerminalRepresentable.swift */,
+				3FA16ACA2CBF8F59008BD48A /* rendering */,
+				3FA16AC72CBF8854008BD48A /* TerminalBuffer.swift */,
 				3FA16AB52CBE35A5008BD48A /* Assets.xcassets */,
 				3FA16ABA2CBE35A5008BD48A /* mt.entitlements */,
 				3FA16AB72CBE35A5008BD48A /* Preview Content */,
@@ -85,6 +90,15 @@
 				3FA16AC52CBE3A46008BD48A /* CoreText.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		3FA16ACA2CBF8F59008BD48A /* rendering */ = {
+			isa = PBXGroup;
+			children = (
+				3FA16AC02CBE35F4008BD48A /* TerminalView.swift */,
+				3FA16AC22CBE36D9008BD48A /* TerminalRepresentable.swift */,
+			);
+			path = rendering;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -145,6 +159,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FA16ACC2CC0871F008BD48A /* README.md in Resources */,
 				3FA16AB92CBE35A5008BD48A /* Preview Assets.xcassets in Resources */,
 				3FA16AB62CBE35A5008BD48A /* Assets.xcassets in Resources */,
 			);
@@ -159,6 +174,7 @@
 			files = (
 				3FA16AB42CBE35A2008BD48A /* ContentView.swift in Sources */,
 				3FA16AC12CBE35F4008BD48A /* TerminalView.swift in Sources */,
+				3FA16AC82CBF8854008BD48A /* TerminalBuffer.swift in Sources */,
 				3FA16AC32CBE36D9008BD48A /* TerminalRepresentable.swift in Sources */,
 				3FA16AB22CBE35A2008BD48A /* mtApp.swift in Sources */,
 			);

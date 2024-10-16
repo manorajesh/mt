@@ -10,7 +10,8 @@ import Cocoa
 
 struct TerminalRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> TerminalView {
-        let view = TerminalView()
+        let buffer = TerminalBuffer(columns: 10, rows: 10)
+        let view = TerminalView(buffer: buffer)
         return view
     }
 
