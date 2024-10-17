@@ -15,6 +15,7 @@ class TerminalView: NSView {
     var font: NSFont
     var cellHeight: CGFloat
     var cellWidth: CGFloat
+    var backBuffer: NSImage?
     
     init(buffer: Buffer) {
         self.buffer = buffer
@@ -22,6 +23,7 @@ class TerminalView: NSView {
         cellHeight = fontSize + 4
         cellWidth = font.advancement(forGlyph: NSGlyph(CGGlyph(" ".utf16.first!))).width
         super.init(frame: .zero)
+        self.wantsLayer = true
         self.postsFrameChangedNotifications = true
         NotificationCenter.default.addObserver(self, selector: #selector(frameDidChange), name: NSView.frameDidChangeNotification, object: self)
     }
@@ -40,30 +42,72 @@ class TerminalView: NSView {
         // Resize the buffer and viewport
         buffer.resizeViewport(rows: newRows, cols: newCols)
         
+        createBackBuffer()
+        
         // Redraw the view
         self.setNeedsDisplay(bounds)
+    }
+    
+    private func createBackBuffer() {
+        // Create a new off-screen buffer (backing buffer) with the size of the view
+        backBuffer = NSImage(size: bounds.size)
     }
     
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
+        // If the back buffer is nil, create one
+        if backBuffer == nil {
+            createBackBuffer()
+        }
+
+        // Draw the terminal content to the back buffer
+        drawToBackBuffer()
+
+        // Draw the back buffer to the screen
+        backBuffer?.draw(in: dirtyRect, from: dirtyRect, operation: .sourceOver, fraction: 1.0)
+    }
+    
+    
+    private func drawToBackBuffer() {
+        guard let backBuffer = backBuffer else { return }
+
+        backBuffer.lockFocus()
+
+        // Clear the back buffer before drawing
+        NSColor.black.setFill()
+        bounds.fill()
+
+        // Draw the terminal content onto the back buffer
         for (rowIndex, row) in buffer.buffer {
             if rowIndex >= buffer.viewport.topRow {
                 for (colIndex, cell) in row.enumerated() {
                     let attributedString = createAttributedString(for: cell, with: font)
                     let xPosition = CGFloat(colIndex) * cellWidth
-                    let yPosition = CGFloat(rowIndex + 1) * cellHeight
+                    let yPosition = CGFloat(rowIndex + 1 - buffer.viewport.topRow) * cellHeight
                     
-                    context.textPosition = CGPoint(x: xPosition, y: bounds.height - yPosition)
-                    
-                    let line = CTLineCreateWithAttributedString(attributedString)
-                    CTLineDraw(line, context)
+                    attributedString.draw(at: CGPoint(x: xPosition, y: bounds.height - yPosition))
                 }
             }
         }
-        
-        // Draw the cursor
-        drawCursor(in: context)
+
+        // Draw the cursor on the back buffer
+        drawCursorInBackBuffer()
+
+        backBuffer.unlockFocus()
+    }
+
+    private func drawCursorInBackBuffer() {
+        let cursorX = buffer.cursorPosition.x
+        let cursorY = buffer.cursorPosition.y - buffer.viewport.topRow
+        let cursorRect = CGRect(
+            x: CGFloat(cursorX) * cellWidth,
+            y: bounds.height - CGFloat(cursorY + 1) * cellHeight - 4,
+            width: cellWidth,
+            height: cellHeight
+        )
+        NSColor.gray.setFill()
+        cursorRect.fill()
     }
     
     private func drawCursor(in context: CGContext) {
@@ -133,6 +177,7 @@ class TerminalView: NSView {
             case 0x24:
                 pty?.sendSpecialKey(.enter)
             case 0x33:
+                buffer.handleBackspace() // because of cooked mode
                 pty?.sendSpecialKey(.backspace)
             case 0x7E:
                 pty?.sendSpecialKey(.arrowUp)
@@ -156,7 +201,13 @@ class TerminalView: NSView {
     
     private func handleTextInput(_ text: String) {
         pty?.sendInput(text)
-        self.setNeedsDisplay(self.bounds)
+        //        let dirtyRect = CGRect(
+        //            x: CGFloat(buffer.cursorPosition.x) * cellWidth,
+        //            y: bounds.height - CGFloat(buffer.cursorPosition.y + 1) * cellHeight,
+        //            width: CGFloat(text.count) * cellWidth,
+        //            height: cellHeight
+        //        )
+        //        self.setNeedsDisplay(dirtyRect)
     }
     
     func setPty(_ pty: Pty) {

@@ -27,7 +27,7 @@ class Pty {
             return
         } else if pid == 0 {
             // Child process: Execute the shell here
-            let shell = "/bin/bash"
+            let shell = "/bin/zsh"
             let args: [UnsafeMutablePointer<CChar>?] = [
                 strdup(shell),
                 nil
@@ -61,11 +61,8 @@ class Pty {
             while true {
                 let bytesRead = read(fd, &bufferArray, bufferSize - 1)
                 if bytesRead > 0 {
-                    let data = Data(bytes: bufferArray, count: bytesRead)
-                    print("----------------")
-                    for byte in data {
-                        let character = Character(UnicodeScalar(byte))
-                        self.parser.parse(character: character)
+                    for i in 0..<bytesRead {
+                        self.parser.parse(byte: bufferArray[i])
                     }
                     DispatchQueue.main.async {
                         // Redraw the view
@@ -100,7 +97,7 @@ class Pty {
         case .ctrlZ:
             controlBytes = [0x1A]  // Ctrl+Z
         case .backspace:
-            controlBytes = [0x7F]  // Backspace (delete character)
+            controlBytes = [0x08]  // Backspace (delete character)
             
             // Arrow keys send escape sequences:
         case .arrowUp:

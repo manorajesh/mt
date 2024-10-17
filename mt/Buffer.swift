@@ -148,6 +148,12 @@ class Buffer {
         cursorPosition.x += 1
     }
     
+    func handleBackspace() {
+        if cursorPosition.x > 0 {
+            cursorPosition.x -= 1
+        }
+    }
+    
     func addCarriageReturn() {
         cursorPosition.x = 0
     }
@@ -155,7 +161,7 @@ class Buffer {
     func addLineFeed() {
         cursorPosition.y += 1
         buffer[cursorPosition.y] = []
-        while cursorPosition.y >= viewport.topRow + viewport.cols {
+        while cursorPosition.y >= viewport.topRow + viewport.rows {
             viewport.topRow += 1
         }
     }
@@ -264,39 +270,4 @@ class Buffer {
         self.viewport.rows = rows
         self.viewport.cols = cols
     }
-    
-    // Render function that returns the portion of the buffer to be displayed
-//    public func renderViewport() -> [[CharacterCell]] {
-//        var visibleCells: [[CharacterCell]] = []
-//        
-//        var currentRow = viewport.topRow
-//        var remainingRows = viewport.rows
-//        
-//        // Loop over the visible rows based on the viewport, handling wrapping
-//        while remainingRows > 0 {
-//            if let row = buffer[currentRow] {
-//                // Split the row into chunks that fit the viewport width (cols)
-//                var rowStartIndex = 0
-//                while rowStartIndex < row.count && remainingRows > 0 {
-//                    let endIndex = min(rowStartIndex + viewport.cols, row.count)
-//                    let visibleRow = Array(row[rowStartIndex..<endIndex])
-//                    visibleCells.append(visibleRow)
-//                    
-//                    // Move the row index forward by the number of columns in the viewport
-//                    rowStartIndex += viewport.cols
-//                    remainingRows -= 1
-//                }
-//            } else {
-//                // If the row doesn't exist, append an empty row
-//                let emptyRow = Array(repeating: defaultCell, count: viewport.cols)
-//                visibleCells.append(emptyRow)
-//                remainingRows -= 1
-//            }
-//            
-//            // Move to the next row in the buffer
-//            currentRow += 1
-//        }
-//        
-//        return visibleCells
-//    }
 }
