@@ -14,8 +14,9 @@
 		3FA16AC12CBE35F4008BD48A /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC02CBE35F4008BD48A /* TerminalView.swift */; };
 		3FA16AC32CBE36D9008BD48A /* TerminalRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC22CBE36D9008BD48A /* TerminalRepresentable.swift */; };
 		3FA16AC62CBE3A46008BD48A /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FA16AC52CBE3A46008BD48A /* CoreText.framework */; };
-		3FA16AC82CBF8854008BD48A /* TerminalBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC72CBF8854008BD48A /* TerminalBuffer.swift */; };
+		3FA16AC82CBF8854008BD48A /* Buffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC72CBF8854008BD48A /* Buffer.swift */; };
 		3FA16ACC2CC0871F008BD48A /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 3FA16ACB2CC0871F008BD48A /* README.md */; };
+		3FA16ACE2CC0A3DC008BD48A /* Pty.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16ACD2CC0A3DC008BD48A /* Pty.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,8 +29,9 @@
 		3FA16AC02CBE35F4008BD48A /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		3FA16AC22CBE36D9008BD48A /* TerminalRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRepresentable.swift; sourceTree = "<group>"; };
 		3FA16AC52CBE3A46008BD48A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
-		3FA16AC72CBF8854008BD48A /* TerminalBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalBuffer.swift; sourceTree = "<group>"; };
+		3FA16AC72CBF8854008BD48A /* Buffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buffer.swift; sourceTree = "<group>"; };
 		3FA16ACB2CC0871F008BD48A /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		3FA16ACD2CC0A3DC008BD48A /* Pty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pty.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,7 +70,8 @@
 				3FA16AB12CBE35A2008BD48A /* mtApp.swift */,
 				3FA16AB32CBE35A2008BD48A /* ContentView.swift */,
 				3FA16ACA2CBF8F59008BD48A /* rendering */,
-				3FA16AC72CBF8854008BD48A /* TerminalBuffer.swift */,
+				3FA16AC72CBF8854008BD48A /* Buffer.swift */,
+				3FA16ACD2CC0A3DC008BD48A /* Pty.swift */,
 				3FA16AB52CBE35A5008BD48A /* Assets.xcassets */,
 				3FA16ABA2CBE35A5008BD48A /* mt.entitlements */,
 				3FA16AB72CBE35A5008BD48A /* Preview Content */,
@@ -172,9 +175,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FA16ACE2CC0A3DC008BD48A /* Pty.swift in Sources */,
 				3FA16AB42CBE35A2008BD48A /* ContentView.swift in Sources */,
 				3FA16AC12CBE35F4008BD48A /* TerminalView.swift in Sources */,
-				3FA16AC82CBF8854008BD48A /* TerminalBuffer.swift in Sources */,
+				3FA16AC82CBF8854008BD48A /* Buffer.swift in Sources */,
 				3FA16AC32CBE36D9008BD48A /* TerminalRepresentable.swift in Sources */,
 				3FA16AB22CBE35A2008BD48A /* mtApp.swift in Sources */,
 			);

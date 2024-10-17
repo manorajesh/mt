@@ -9,12 +9,20 @@ import Cocoa
 import CoreText
 
 class TerminalView: NSView {
-    var buffer: TerminalBuffer
-    var cursorPosition: (x: Int, y: Int)
+    var buffer: Buffer
+    var pty: Pty?
+    //    var cursorPosition: (x: Int, y: Int)
+    var fontSize: CGFloat = 16
+    var font: NSFont
+    var cellHeight: CGFloat
+    var cellWidth: CGFloat
     
-    init(buffer: TerminalBuffer) {
+    init(buffer: Buffer) {
         self.buffer = buffer
-        self.cursorPosition = (x: 0, y: 0)
+        //        cursorPosition = (x: 0, y: 0)
+        font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        cellHeight = fontSize + 4 // Slight padding for line height
+        cellWidth = font.advancement(forGlyph: NSGlyph(CGGlyph(" ".utf16.first!))).width
         super.init(frame: .zero)
     }
     
@@ -25,13 +33,8 @@ class TerminalView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
-        let fontSize: CGFloat = 25
-        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-        let cellHeight = fontSize + 4 // Slight padding for line height
-        let cellWidth = font.advancement(forGlyph: NSGlyph(CGGlyph(" ".utf16.first!))).width
-        
         // Draw the cursor at the current cursor position
-        drawCursor(at: cursorPosition, with: cellWidth, and: cellHeight, in: context)
+//                drawCursor(at: cursorPosition, with: cellWidth, and: cellHeight, in: context)
         
         for (rowIndex, row) in buffer.buffer.enumerated() {
             for (colIndex, cell) in row.enumerated() {
@@ -82,37 +85,36 @@ class TerminalView: NSView {
         return true
     }
     
-    override func mouseDown(with event: NSEvent) {
-        window?.makeFirstResponder(self)
-    }
-    
     override func keyDown(with event: NSEvent) {
         interpretKeyEvents([event])
         let keyCode = event.keyCode
         let modifiers = event.modifierFlags
         
         if modifiers.contains(.control) {
-            if keyCode == 0 {  // Control + A
-                handleControlA()
+            switch keyCode {
+            case 0x08:
+                pty?.sendSpecialKey(.ctrlC)
+            case 0x02:
+                pty?.sendSpecialKey(.ctrlD)
+            case 0x06:
+                pty?.sendSpecialKey(.ctrlZ)
+            default:
+                super.keyDown(with: event)
             }
         } else {
             switch keyCode {
-            case 123:  // Left Arrow
-                handleArrowKey(direction: .left)
-            case 124:  // Right Arrow
-                handleArrowKey(direction: .right)
-            case 125:  // Down Arrow
-                handleArrowKey(direction: .down)
-            case 126:  // Up Arrow
-                handleArrowKey(direction: .up)
-            case 53:   // Escape
-                handleEscapeKey()
-            case 51:   // Delete (Backspace)
-                handleBackspace()
+            case 0x24:
+                pty?.sendSpecialKey(.enter)
+            case 0x33:
+                pty?.sendSpecialKey(.backspace)
             default:
-                super.keyDown(with: event)  // Let default behavior handle it
+                super.keyDown(with: event)
             }
         }
+    }
+    
+    private func handleArrowKey(direction: ArrowDirection) {
+        
     }
     
     override func insertText(_ insertString: Any) {
@@ -121,39 +123,13 @@ class TerminalView: NSView {
         }
     }
     
-    private func handleArrowKey(direction: ArrowDirection) {
-        switch direction {
-        case .up:
-            self.cursorPosition.y -= 1
-            
-        case .down:
-            self.cursorPosition.y += 1
-            
-        case .left:
-            self.cursorPosition.x -= 1
-            
-        case .right:
-            self.cursorPosition.x += 1
-        }
-        self.setNeedsDisplay(self.bounds)
-    }
-    
-    private func handleControlA() {
-        // Handle Control + A behavior
-    }
-    
-    private func handleEscapeKey() {
-        // Handle Escape key behavior
-    }
-    
-    private func handleBackspace() {
-        // Handle Backspace behavior
-    }
-    
     private func handleTextInput(_ text: String) {
-        print("Received text: \(text)")
-        buffer.insertText(char: text.last ?? "2")
+        pty?.sendInput(text)
         self.setNeedsDisplay(self.bounds)
+    }
+    
+    func setPty(_ pty: Pty) {
+        self.pty = pty
     }
 }
 
