@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3F29498C2CC17E71005A0131 /* AnsiParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F29498B2CC17E71005A0131 /* AnsiParser.swift */; };
 		3FA16AB22CBE35A2008BD48A /* mtApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AB12CBE35A2008BD48A /* mtApp.swift */; };
 		3FA16AB42CBE35A2008BD48A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AB32CBE35A2008BD48A /* ContentView.swift */; };
 		3FA16AB62CBE35A5008BD48A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FA16AB52CBE35A5008BD48A /* Assets.xcassets */; };
@@ -20,6 +21,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3F29498B2CC17E71005A0131 /* AnsiParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnsiParser.swift; sourceTree = "<group>"; };
 		3FA16AAE2CBE35A2008BD48A /* mt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = mt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FA16AB12CBE35A2008BD48A /* mtApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = mtApp.swift; sourceTree = "<group>"; };
 		3FA16AB32CBE35A2008BD48A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -71,6 +73,7 @@
 				3FA16AB32CBE35A2008BD48A /* ContentView.swift */,
 				3FA16ACA2CBF8F59008BD48A /* rendering */,
 				3FA16AC72CBF8854008BD48A /* Buffer.swift */,
+				3F29498B2CC17E71005A0131 /* AnsiParser.swift */,
 				3FA16ACD2CC0A3DC008BD48A /* Pty.swift */,
 				3FA16AB52CBE35A5008BD48A /* Assets.xcassets */,
 				3FA16ABA2CBE35A5008BD48A /* mt.entitlements */,
@@ -175,6 +178,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3F29498C2CC17E71005A0131 /* AnsiParser.swift in Sources */,
 				3FA16ACE2CC0A3DC008BD48A /* Pty.swift in Sources */,
 				3FA16AB42CBE35A2008BD48A /* ContentView.swift in Sources */,
 				3FA16AC12CBE35F4008BD48A /* TerminalView.swift in Sources */,
@@ -311,6 +315,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = mt/mt.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -338,6 +343,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = mt/mt.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

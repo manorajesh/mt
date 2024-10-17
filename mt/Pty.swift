@@ -1,5 +1,5 @@
 //
-//  TerminalEmulator.swift
+//  Pty.swift
 //  mt
 //
 //  Created by Mano Rajesh on 10/16/24.
@@ -12,10 +12,12 @@ class Pty {
     var termiosOptions = termios()
     var buffer: Buffer
     var view: TerminalView
+    var parser: AnsiParser
     
     init(buffer: Buffer, view: TerminalView, rows: UInt16, cols: UInt16) {
         self.buffer = buffer
         self.view = view
+        self.parser = AnsiParser(buffer: buffer)
         var winSize = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
         
         let pid = forkpty(masterFd, nil, &termiosOptions, &winSize)
@@ -45,23 +47,27 @@ class Pty {
         }
     }
     
+    func resizePty(rows: UInt16, cols: UInt16) {
+        var winSize = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
+        ioctl(self.masterFd.pointee, TIOCSWINSZ, &winSize)
+    }
+    
     // Start reading from PTY and updating the buffer with shell output
     private func startReadingOutput(fd: Int32) {
         let bufferSize = 1024
-        var bufferArray = [CChar](repeating: 0, count: bufferSize)
-
+        var bufferArray = [UInt8](repeating: 0, count: bufferSize)
+        
         DispatchQueue.global(qos: .userInteractive).async {
             while true {
-                bufferArray = [CChar](repeating: 0, count: bufferSize)
                 let bytesRead = read(fd, &bufferArray, bufferSize - 1)
                 if bytesRead > 0 {
-                    let output = String(cString: bufferArray)
+                    let data = Data(bytes: bufferArray, count: bytesRead)
+                    print("----------------")
+                    for byte in data {
+                        let character = Character(UnicodeScalar(byte))
+                        self.parser.parse(character: character)
+                    }
                     DispatchQueue.main.async {
-                        // Update buffer with output
-                        for char in output {
-                            print(char.debugDescription)
-                            self.buffer.appendChar(char)
-                        }
                         // Redraw the view
                         self.view.setNeedsDisplay(self.view.bounds)
                     }
@@ -81,35 +87,35 @@ class Pty {
     }
     
     func sendSpecialKey(_ key: SpecialKey) {
-            let fd = masterFd.pointee
-            var controlBytes: [UInt8] = []
-            
-            switch key {
-            case .enter:
-                controlBytes = [0x0A]  // Newline (Enter)
-            case .ctrlC:
-                controlBytes = [0x03]  // Ctrl+C
-            case .ctrlD:
-                controlBytes = [0x04]  // Ctrl+D
-            case .ctrlZ:
-                controlBytes = [0x1A]  // Ctrl+Z
-            case .backspace:
-                controlBytes = [0x7F]  // Backspace (delete character)
+        let fd = masterFd.pointee
+        var controlBytes: [UInt8] = []
+        
+        switch key {
+        case .enter:
+            controlBytes = [0x0A]  // Newline (Enter)
+        case .ctrlC:
+            controlBytes = [0x03]  // Ctrl+C
+        case .ctrlD:
+            controlBytes = [0x04]  // Ctrl+D
+        case .ctrlZ:
+            controlBytes = [0x1A]  // Ctrl+Z
+        case .backspace:
+            controlBytes = [0x7F]  // Backspace (delete character)
             
             // Arrow keys send escape sequences:
-            case .arrowUp:
-                controlBytes = [0x1B, 0x5B, 0x41]  // ESC [ A
-            case .arrowDown:
-                controlBytes = [0x1B, 0x5B, 0x42]  // ESC [ B
-            case .arrowLeft:
-                controlBytes = [0x1B, 0x5B, 0x44]  // ESC [ D
-            case .arrowRight:
-                controlBytes = [0x1B, 0x5B, 0x43]  // ESC [ C
-            }
-            
-            // Write the control sequence to the PTY
-            write(fd, controlBytes, controlBytes.count)
+        case .arrowUp:
+            controlBytes = [0x1B, 0x5B, 0x41]  // ESC [ A
+        case .arrowDown:
+            controlBytes = [0x1B, 0x5B, 0x42]  // ESC [ B
+        case .arrowLeft:
+            controlBytes = [0x1B, 0x5B, 0x44]  // ESC [ D
+        case .arrowRight:
+            controlBytes = [0x1B, 0x5B, 0x43]  // ESC [ C
         }
+        
+        // Write the control sequence to the PTY
+        write(fd, controlBytes, controlBytes.count)
+    }
     
     deinit {
         masterFd.deallocate()
