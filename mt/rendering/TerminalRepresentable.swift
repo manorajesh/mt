@@ -20,6 +20,6 @@ struct TerminalRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: TerminalView, context: Context) {
-        // Update the view when needed (e.g., change text)
+//        nsView.setNeedsDisplay(context.bounds)
     }
 }

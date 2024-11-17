@@ -47,6 +47,32 @@ class Pty {
         }
     }
     
+    private func configureTermios() {
+        // Turn off ICANON (disable canonical mode)
+        termiosOptions.c_lflag &= ~UInt(ICANON)
+        
+        // Turn off ECHO (disable echoing of input characters)
+        termiosOptions.c_lflag &= ~UInt(ECHO)
+        
+        // Enable signal generation (ISIG)
+        termiosOptions.c_lflag |= UInt(ISIG)
+        
+        // Enable extended input processing (IEXTEN)
+        termiosOptions.c_lflag |= UInt(IEXTEN)
+        
+        // Input flag: Enable carriage return to newline translation (ICRNL)
+        termiosOptions.c_iflag |= UInt(ICRNL)
+        
+        // Output flag: Enable output post-processing (OPOST)
+        termiosOptions.c_oflag |= UInt(OPOST)
+        
+        // Set the minimum number of characters for non-canonical reads (VMIN = 1)
+//        termiosOptions.c_cc[VMIN] = 1
+//        
+//        // Set timeout for non-canonical reads to 0 (VTIME = 0)
+//        termiosOptions.c_cc[VTIME] = 0
+    }
+
     func resizePty(rows: UInt16, cols: UInt16) {
         var winSize = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
         ioctl(self.masterFd.pointee, TIOCSWINSZ, &winSize)
@@ -66,7 +92,8 @@ class Pty {
                     }
                     DispatchQueue.main.async {
                         // Redraw the view
-                        self.view.setNeedsDisplay(self.view.bounds)
+                        //                        self.view.setNeedsDisplay(self.view.bounds)
+                        self.view.refresh()
                     }
                 }
                 usleep(10000)  // 10ms delay to avoid busy-waiting

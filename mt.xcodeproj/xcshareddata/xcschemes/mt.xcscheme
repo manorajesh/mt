@@ -39,7 +39,9 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       showGraphicsOverview = "Yes"
-      allowLocationSimulation = "YES">
+      allowLocationSimulation = "YES"
+      consoleMode = "0"
+      structuredConsoleMode = "1">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
