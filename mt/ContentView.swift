@@ -9,7 +9,9 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        TerminalRepresentable().background(Color.black)
+        MetalTextView(text: "A")
+                        .background(Color.black)
+                        .frame(width: .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
     }
 }
 

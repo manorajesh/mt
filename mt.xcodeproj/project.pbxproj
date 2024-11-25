@@ -18,7 +18,26 @@
 		3FA16AC82CBF8854008BD48A /* Buffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16AC72CBF8854008BD48A /* Buffer.swift */; };
 		3FA16ACC2CC0871F008BD48A /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 3FA16ACB2CC0871F008BD48A /* README.md */; };
 		3FA16ACE2CC0A3DC008BD48A /* Pty.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA16ACD2CC0A3DC008BD48A /* Pty.swift */; };
+		3FF033B32CEAB8C10074DB53 /* MetalTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF033B02CEAB8C10074DB53 /* MetalTextView.swift */; };
+		3FF033B42CEAB8C10074DB53 /* MetalTextRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF033B12CEAB8C10074DB53 /* MetalTextRenderer.swift */; };
+		3FF033B52CEAB8C10074DB53 /* shader.metal in Sources */ = {isa = PBXBuildFile; fileRef = 3FF033B22CEAB8C10074DB53 /* shader.metal */; };
+		3FF033B72CEABC970074DB53 /* SDFont.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FF033B62CEABC970074DB53 /* SDFont.framework */; };
+		3FF033B82CEABC970074DB53 /* SDFont.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 3FF033B62CEABC970074DB53 /* SDFont.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		3FF033B92CEABC970074DB53 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				3FF033B82CEABC970074DB53 /* SDFont.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		3F29498B2CC17E71005A0131 /* AnsiParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnsiParser.swift; sourceTree = "<group>"; };
@@ -34,6 +53,10 @@
 		3FA16AC72CBF8854008BD48A /* Buffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buffer.swift; sourceTree = "<group>"; };
 		3FA16ACB2CC0871F008BD48A /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		3FA16ACD2CC0A3DC008BD48A /* Pty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pty.swift; sourceTree = "<group>"; };
+		3FF033B02CEAB8C10074DB53 /* MetalTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MetalTextView.swift; sourceTree = "<group>"; };
+		3FF033B12CEAB8C10074DB53 /* MetalTextRenderer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MetalTextRenderer.swift; sourceTree = "<group>"; };
+		3FF033B22CEAB8C10074DB53 /* shader.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = shader.metal; sourceTree = "<group>"; };
+		3FF033B62CEABC970074DB53 /* SDFont.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SDFont.framework; path = ../../../../Library/Frameworks/SDFont.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,6 +64,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FF033B72CEABC970074DB53 /* SDFont.framework in Frameworks */,
 				3FA16AC62CBE3A46008BD48A /* CoreText.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -75,6 +99,9 @@
 				3FA16AC72CBF8854008BD48A /* Buffer.swift */,
 				3F29498B2CC17E71005A0131 /* AnsiParser.swift */,
 				3FA16ACD2CC0A3DC008BD48A /* Pty.swift */,
+				3FF033B12CEAB8C10074DB53 /* MetalTextRenderer.swift */,
+				3FF033B02CEAB8C10074DB53 /* MetalTextView.swift */,
+				3FF033B22CEAB8C10074DB53 /* shader.metal */,
 				3FA16AB52CBE35A5008BD48A /* Assets.xcassets */,
 				3FA16ABA2CBE35A5008BD48A /* mt.entitlements */,
 				3FA16AB72CBE35A5008BD48A /* Preview Content */,
@@ -93,6 +120,7 @@
 		3FA16AC42CBE3A46008BD48A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				3FF033B62CEABC970074DB53 /* SDFont.framework */,
 				3FA16AC52CBE3A46008BD48A /* CoreText.framework */,
 			);
 			name = Frameworks;
@@ -117,6 +145,7 @@
 				3FA16AAA2CBE35A2008BD48A /* Sources */,
 				3FA16AAB2CBE35A2008BD48A /* Frameworks */,
 				3FA16AAC2CBE35A2008BD48A /* Resources */,
+				3FF033B92CEABC970074DB53 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -179,12 +208,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				3F29498C2CC17E71005A0131 /* AnsiParser.swift in Sources */,
+				3FF033B32CEAB8C10074DB53 /* MetalTextView.swift in Sources */,
 				3FA16ACE2CC0A3DC008BD48A /* Pty.swift in Sources */,
 				3FA16AB42CBE35A2008BD48A /* ContentView.swift in Sources */,
+				3FF033B52CEAB8C10074DB53 /* shader.metal in Sources */,
 				3FA16AC12CBE35F4008BD48A /* TerminalView.swift in Sources */,
 				3FA16AC82CBF8854008BD48A /* Buffer.swift in Sources */,
 				3FA16AC32CBE36D9008BD48A /* TerminalRepresentable.swift in Sources */,
 				3FA16AB22CBE35A2008BD48A /* mtApp.swift in Sources */,
+				3FF033B42CEAB8C10074DB53 /* MetalTextRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -323,6 +355,10 @@
 				DEVELOPMENT_TEAM = 48Y89F7LDM;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(LOCAL_LIBRARY_DIR)/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -351,6 +387,10 @@
 				DEVELOPMENT_TEAM = 48Y89F7LDM;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(LOCAL_LIBRARY_DIR)/Frameworks",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
