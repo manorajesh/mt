@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Bucket
-   uuid = "01DDD36C-1D1A-4C64-9754-307BBA667295"
+   uuid = "616A85D7-D383-4D68-A0D5-AF71D66C1AF5"
    type = "1"
    version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.RuntimeIssueBreakpoint">
+         <BreakpointContent
+            uuid = "034CB9BB-8E08-46DF-AA17-A662D69FB8B9"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            breakpointStackSelectionBehavior = "1"
+            type = "8"
+            categories = "Metal Diagnostics">
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
 </Bucket>
