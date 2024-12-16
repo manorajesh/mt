@@ -8,19 +8,48 @@
 import SwiftUI
 import MetalKit
 
+class TerminalMTKView: MTKView {
+    var pty: Pty?
+    
+    override var acceptsFirstResponder: Bool {
+        true  // Allows this view to receive key events
+    }
+    
+    override func keyDown(with event: NSEvent) {
+        super.keyDown(with: event)
+        
+        guard let characters = event.characters else { return }
+        // Send the typed characters to the PTY
+        pty?.sendInput(characters)
+    }
+    
+    // Handle special keys, arrow keys, etc.
+    override func keyUp(with event: NSEvent) {
+        super.keyUp(with: event)
+        // If needed, handle key-up logic.
+    }
+}
+
+
 struct TerminalView: NSViewRepresentable {
     @StateObject private var coordinator = Coordinator()
     
     func makeNSView(context: Context) -> MTKView {
-        let buffer = Buffer(rows: 24, cols: 80)
-        let pty = Pty(buffer: buffer, view: self, rows: 24, cols: 80)
+        let buffer = Buffer(rows: 100, cols: 800)
+        let pty = Pty(buffer: buffer, view: self, rows: 100, cols: 800)
         
         let device = MTLCreateSystemDefaultDevice()!
-        let mtkView = MTKView(frame: .zero, device: device)
+        let mtkView = TerminalMTKView(frame: .zero, device: device)
         
         let renderer = Renderer(device: device, buffer: buffer)
         mtkView.delegate = renderer
         coordinator.renderer = renderer   // <--- Store renderer in our coordinator
+        
+        // Assign the pty reference so keyDown can forward input
+        mtkView.pty = pty
+        
+        // Optionally, request focus so we can receive keyboard input
+        mtkView.becomeFirstResponder()
         
         return mtkView
     }
