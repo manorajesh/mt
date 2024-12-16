@@ -48,7 +48,7 @@ class Renderer: NSObject, MTKViewDelegate {
     init(device: MTLDevice) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
-        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4000, height: 4000), font: .monospacedSystemFont(ofSize: 72, weight: .regular ))!
+        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4000, height: 4000), font: .monospacedSystemFont(ofSize: 400, weight: .regular ))!
         
         let desktopURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
         let fileURL = desktopURL.appendingPathComponent("FontAtlas.png")
@@ -195,7 +195,7 @@ class Renderer: NSObject, MTKViewDelegate {
 }
 
 class FontAtlas {
-    var charSet = "abcdefghijklmnop"
+    var charSet = #" !#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"#
     var atlasTexture: MTLTexture?
     private var glyphs: [Character: Glyph] = [:]
     
@@ -229,22 +229,29 @@ class FontAtlas {
         
         // Render each character into the context, tracking positions
         var currentX = 0
+        var currentY = 0
+        let yPadding = 5
         for character in charSet {
             let charString = String(character)
             let charSize = charString.size(withAttributes: attributes)
             
-            if currentX + Int(charSize.width) > bitmapWidth {
-                print("Skipping \(charString); atlas dims too small")
-                continue
+            if currentY + Int(charSize.height) + yPadding > bitmapHeight {
+                print("Altas too small; skipping remaining chars")
+                break
             }
             
-            let drawRect = CGRect(x: CGFloat(currentX), y: 0, width: charSize.width, height: charSize.height)
+            if currentX + Int(charSize.width) > bitmapWidth {
+                currentY += Int(charSize.height) + yPadding
+                currentX = 0
+            }
+            
+            let drawRect = CGRect(x: CGFloat(currentX), y: CGFloat(currentY), width: charSize.width, height: charSize.height)
             charString.draw(in: drawRect, withAttributes: attributes)
             
             let glyph = Glyph(width: Int(charSize.width),
                               height: Int(charSize.height),
                               x: currentX,
-                              y: 0)
+                              y: currentY)
             glyphs[character] = glyph
             
             currentX += Int(charSize.width)
