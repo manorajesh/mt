@@ -48,11 +48,7 @@ class Renderer: NSObject, MTKViewDelegate {
     init(device: MTLDevice) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
-        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4000, height: 4000), font: .monospacedSystemFont(ofSize: 400, weight: .regular ))!
-        
-        let desktopURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
-        let fileURL = desktopURL.appendingPathComponent("FontAtlas.png")
-        saveFontAtlasToFile(fontAtlas: self.fontAtlas, fileURL: fileURL)
+        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: .monospacedSystemFont(ofSize: 400, weight: .regular ))!
         
         super.init()
         
@@ -149,10 +145,15 @@ class Renderer: NSObject, MTKViewDelegate {
             
             // Append vertices (triangle strip)
             vertices += [
-                clipX1, clipY1, u1, v1,  // Bottom-left
-                clipX2, clipY1, u2, v1,  // Bottom-right
-                clipX1, clipY2, u1, v2,  // Top-left
-                clipX2, clipY2, u2, v2   // Top-right
+                // Triangle 1
+                clipX1, clipY1, u1, v1,
+                clipX2, clipY1, u2, v1,
+                clipX1, clipY2, u1, v2,
+                
+                // Triangle 2
+                clipX1, clipY2, u1, v2,
+                clipX2, clipY1, u2, v1,
+                clipX2, clipY2, u2, v2
             ]
             
             // Advance cursor for the next character
@@ -163,7 +164,7 @@ class Renderer: NSObject, MTKViewDelegate {
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        setupVertices(for: "abc", viewSize: size)
+        setupVertices(for: "falsdkf", viewSize: size)
     }
     
     func draw(in view: MTKView) {
@@ -182,7 +183,7 @@ class Renderer: NSObject, MTKViewDelegate {
         encoder.setFragmentSamplerState(samplerState, index: 0)
         
         let vertexCount = vertexBuffer.length / (4 * MemoryLayout<Float>.size) // 4 floats per vertex
-        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: vertexCount)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertexCount)
         
         encoder.endEncoding()
         commandBuffer.present(drawable)

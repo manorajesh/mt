@@ -97,6 +97,12 @@ class FontAtlas {
         return glyphs[character]  // Return the glyph for the specified character
     }
     
+    func saveToFile() {
+        let desktopURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        let fileURL = desktopURL.appendingPathComponent("FontAtlas.png")
+        saveFontAtlasToFile(fontAtlas: self, fileURL: fileURL)
+    }
+    
     class Glyph {
         var size: (width: Int, height: Int)
         var position: (x: Int, y: Int)
