@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1520"
+   LastUpgradeVersion = "1610"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
+      buildImplicitDependencies = "YES"
+      buildArchitectures = "Automatic">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -14,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3FA16AAD2CBE35A2008BD48A"
+               BlueprintIdentifier = "3F299AB92D0A70E200FE8A71"
                BuildableName = "mt.app"
                BlueprintName = "mt"
                ReferencedContainer = "container:mt.xcodeproj">
@@ -28,9 +29,33 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "3F299ACA2D0A70E200FE8A71"
+               BuildableName = "mtTests.xctest"
+               BlueprintName = "mtTests"
+               ReferencedContainer = "container:mt.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "3F299AD42D0A70E200FE8A71"
+               BuildableName = "mtUITests.xctest"
+               BlueprintName = "mtUITests"
+               ReferencedContainer = "container:mt.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Release"
+      buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -39,14 +64,12 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       showGraphicsOverview = "Yes"
-      allowLocationSimulation = "YES"
-      consoleMode = "0"
-      structuredConsoleMode = "1">
+      allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3FA16AAD2CBE35A2008BD48A"
+            BlueprintIdentifier = "3F299AB92D0A70E200FE8A71"
             BuildableName = "mt.app"
             BlueprintName = "mt"
             ReferencedContainer = "container:mt.xcodeproj">
@@ -63,7 +86,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3FA16AAD2CBE35A2008BD48A"
+            BlueprintIdentifier = "3F299AB92D0A70E200FE8A71"
             BuildableName = "mt.app"
             BlueprintName = "mt"
             ReferencedContainer = "container:mt.xcodeproj">

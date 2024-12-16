@@ -2,223 +2,192 @@
 //  TerminalView.swift
 //  mt
 //
-//  Created by Mano Rajesh on 10/14/24.
+//  Created by Mano Rajesh on 12/11/24.
 //
 
-import Cocoa
-import CoreText
+import SwiftUI
+import MetalKit
 
-class TerminalView: NSView {
-    var buffer: Buffer
-    var pty: Pty?
-    var fontSize: CGFloat = 10
-    var font: NSFont
-    var cellHeight: CGFloat
-    var cellWidth: CGFloat
-    
-    private var textLayers: [CATextLayer] = []
-    private var cursorLayer: CALayer!
-    
-    // Off-screen buffer for double buffering
-    private var offscreenBuffer: CALayer!
-    
-    init(buffer: Buffer) {
-        self.buffer = buffer
-        font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-        cellHeight = fontSize + 4
+struct TerminalView: NSViewRepresentable {
+    func makeNSView(context: Context) -> MTKView {
+        let device = MTLCreateSystemDefaultDevice()!
+        let mtkView = MTKView(frame: .zero, device: device)
         
-        // Calculate cellWidth using Core Text for accurate glyph advancement
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
-        let attrString = NSAttributedString(string: " ", attributes: attributes)
-        let size = attrString.size()
-        cellWidth = size.width
+        let renderer = Renderer(device: device)
+        mtkView.delegate = renderer
+        context.coordinator.renderer = renderer
         
-        super.init(frame: .init())
-        self.wantsLayer = true
-        self.layer?.backgroundColor = NSColor.black.cgColor
-        
-        // Initialize the off-screen buffer
-        offscreenBuffer = CALayer()
-        offscreenBuffer.frame = self.bounds
-        offscreenBuffer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2.0
-        offscreenBuffer.isOpaque = true
-        offscreenBuffer.backgroundColor = NSColor.black.cgColor
-        self.layer?.addSublayer(offscreenBuffer)  // Add as a sublayer
-        
-        setupTextLayers()
-        setupCursorLayer()
-        
-        self.postsFrameChangedNotifications = true
-        NotificationCenter.default.addObserver(self, selector: #selector(frameDidChange), name: NSView.frameDidChangeNotification, object: self)
-        
-        refresh()
+        return mtkView
     }
     
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    func updateNSView(_ nsView: MTKView, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
     }
     
-    @objc func frameDidChange() {
-        let newRows = Int(bounds.height / cellHeight)
-        let newCols = Int(bounds.width / cellWidth)
-        
-        pty?.resizePty(rows: UInt16(newRows), cols: UInt16(newCols))
-        buffer.resizeViewport(rows: newRows, cols: newCols)
-        
-        cursorLayer.frame = bounds
-        offscreenBuffer.frame = bounds
-        
-        setupTextLayers()
-        updateOffscreenBuffer()
-        updateCursorLayer()
-    }
-    
-    private func setupTextLayers() {
-        let rows = Int(bounds.height / cellHeight)
-        textLayers.forEach({ $0.removeFromSuperlayer() })
-        textLayers.removeAll()
-        
-        for rowIndex in 0..<rows {
-            let textLayer = CATextLayer()
-            textLayer.frame = frameForRow(rowIndex, rows)
-            textLayer.alignmentMode = .left
-            textLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2.0
-            textLayer.truncationMode = .none
-            textLayer.isWrapped = false
-            textLayer.backgroundColor = NSColor.clear.cgColor
-            textLayer.font = font
-            textLayer.fontSize = fontSize
-            textLayer.foregroundColor = NSColor.white.cgColor
-            textLayer.removeAllAnimations()
-            offscreenBuffer.addSublayer(textLayer)  // Add to offscreenBuffer
-            textLayers.append(textLayer)
-        }
-    }
-    
-    private func frameForRow(_ rowIndex: Int, _ rows: Int) -> CGRect {
-        let yPosition = CGFloat(rows - rowIndex) * cellHeight
-        return CGRect(origin: CGPoint(x: 0, y: yPosition), size: CGSize(width: bounds.width, height: cellHeight + 4))
-    }
-    
-    private func setupCursorLayer() {
-        cursorLayer = CALayer()
-        cursorLayer.frame = CGRect(x: 0, y: 0, width: cellWidth, height: cellHeight)
-        cursorLayer.backgroundColor = NSColor.gray.cgColor
-        cursorLayer.isHidden = false
-        offscreenBuffer.addSublayer(cursorLayer)  // Add cursor to offscreenBuffer
-        
-        let blinkAnimation = CABasicAnimation(keyPath: "opacity")
-        blinkAnimation.fromValue = 1.0
-        blinkAnimation.toValue = 0.0
-        blinkAnimation.duration = 0.5
-        blinkAnimation.autoreverses = true
-        blinkAnimation.repeatCount = .infinity
-        cursorLayer.add(blinkAnimation, forKey: "blink")
-        
-        updateCursorLayer()
-    }
-    
-    private func updateOffscreenBuffer() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for index in buffer.getDirtyRows() {
-            textLayers[index].string = buffer.viewportBuffer[index]
-        }
-        CATransaction.commit()
-    }
-    
-    private func updateCursorLayer() {
-        let cursorX = buffer.cursorPosition.x
-        let cursorY = buffer.cursorPosition.y - buffer.viewport.topRow
-        
-        let visibleRows = Int(bounds.height / cellHeight)
-        guard cursorY >= 0, cursorY < visibleRows else {
-            cursorLayer.isHidden = true
-            return
-        }
-        
-        cursorLayer.isHidden = false
-        let cursorRect = CGRect(
-            x: CGFloat(cursorX) * cellWidth,
-            y: bounds.height - CGFloat(cursorY) * cellHeight,
-            width: cellWidth,
-            height: cellHeight
-        )
-        cursorLayer.frame = cursorRect
-    }
-    
-    func refresh() {
-        updateOffscreenBuffer()
-        updateCursorLayer()
-    }
-    
-    override var acceptsFirstResponder: Bool {
-        return true
-    }
-    
-    override func becomeFirstResponder() -> Bool {
-        return true
-    }
-    
-    override func resignFirstResponder() -> Bool {
-        return true
-    }
-    
-    override func keyDown(with event: NSEvent) {
-        interpretKeyEvents([event])
-        let keyCode = event.keyCode
-        let modifiers = event.modifierFlags
-        
-        if modifiers.contains(.control) {
-            switch keyCode {
-            case 0x08:
-                pty?.sendSpecialKey(.ctrlC)
-            case 0x02:
-                pty?.sendSpecialKey(.ctrlD)
-            case 0x06:
-                pty?.sendSpecialKey(.ctrlZ)
-            default:
-                super.keyDown(with: event)
-            }
-        } else {
-            switch keyCode {
-            case 0x24:
-                pty?.sendSpecialKey(.enter)
-            case 0x33:
-                buffer.handleBackspace()
-                pty?.sendSpecialKey(.backspace)
-            case 0x7E:
-                pty?.sendSpecialKey(.arrowUp)
-            case 0x7D:
-                pty?.sendSpecialKey(.arrowDown)
-            case 0x7B:
-                pty?.sendSpecialKey(.arrowLeft)
-            case 0x7C:
-                pty?.sendSpecialKey(.arrowRight)
-            default:
-                super.keyDown(with: event)
-            }
-        }
-    }
-    
-    override func scrollWheel(with event: NSEvent) {}
-    
-    override func insertText(_ insertString: Any) {
-        if let text = insertString as? String {
-            handleTextInput(text)
-        }
-    }
-    
-    private func handleTextInput(_ text: String) {
-        pty?.sendInput(text)
-        refresh()
-    }
-    
-    func setPty(_ pty: Pty) {
-        self.pty = pty
+    class Coordinator {
+        var renderer: Renderer?
     }
 }
 
-enum ArrowDirection {
-    case left, right, up, down
+struct Vertex {
+    var position: SIMD2<Float>
+    var texCoord: SIMD2<Float>
+}
+
+// MARK: - Metal Renderer
+class Renderer: NSObject, MTKViewDelegate {
+    var device: MTLDevice
+    var commandQueue: MTLCommandQueue
+    var fontAtlas: FontAtlas
+    var vertexBuffer: MTLBuffer?
+    var pipelineState: MTLRenderPipelineState?
+    var samplerState: MTLSamplerState?
+    
+    init(device: MTLDevice) {
+        self.device = device
+        self.commandQueue = device.makeCommandQueue()!
+        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: .monospacedSystemFont(ofSize: 400, weight: .regular ))!
+        
+        super.init()
+        
+        setupPipeline()
+        setupSamplerState()
+    }
+    
+    func setupPipeline() {
+        let library = device.makeDefaultLibrary()
+        let vertexFunction = library?.makeFunction(name: "vertex_main")
+        let fragmentFunction = library?.makeFunction(name: "fragment_main")
+        
+        let pipelineDescriptor = MTLRenderPipelineDescriptor()
+        pipelineDescriptor.vertexFunction = vertexFunction
+        pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+        
+        let vertexDescriptor = MTLVertexDescriptor()
+        
+        // Attribute 0: Position
+        vertexDescriptor.attributes[0].format = .float2  // 2 floats for position (x, y)
+        vertexDescriptor.attributes[0].offset = 0        // Position starts at the beginning of the vertex
+        vertexDescriptor.attributes[0].bufferIndex = 0  // Tied to vertex buffer 0
+        
+        // Attribute 1: Texture Coordinates
+        vertexDescriptor.attributes[1].format = .float2  // 2 floats for texture coordinates (u, v)
+        vertexDescriptor.attributes[1].offset = MemoryLayout<SIMD2<Float>>.stride  // Offset after position
+        vertexDescriptor.attributes[1].bufferIndex = 0  // Same buffer as position
+        
+        // Layout for Buffer 0
+        vertexDescriptor.layouts[0].stride = MemoryLayout<Vertex>.stride  // Stride of the entire vertex
+        vertexDescriptor.layouts[0].stepFunction = .perVertex
+        
+        pipelineDescriptor.vertexDescriptor = vertexDescriptor
+        
+        do {
+            pipelineState = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+        } catch {
+            fatalError("Failed to create pipeline state: \(error)")
+        }
+    }
+    
+    func setupSamplerState() {
+        let samplerDescriptor = MTLSamplerDescriptor()
+        samplerDescriptor.minFilter = .linear      // Linear filtering for minification
+        samplerDescriptor.magFilter = .linear      // Linear filtering for magnification
+        samplerDescriptor.sAddressMode = .clampToEdge // Clamp addressing for S (U) axis
+        samplerDescriptor.tAddressMode = .clampToEdge // Clamp addressing for T (V) axis
+        
+        samplerState = device.makeSamplerState(descriptor: samplerDescriptor)
+    }
+    
+    func setupVertices(for text: String, viewSize: CGSize) {
+        let textureSize = CGSize(width: fontAtlas.atlasTexture!.width, height: fontAtlas.atlasTexture!.height)
+        let vertices = generateVertices(for: text, font: fontAtlas, textureSize: textureSize, screenSize: viewSize)
+        vertexBuffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<Float>.size, options: [])
+    }
+    
+    func generateVertices(for text: String, font: FontAtlas, textureSize: CGSize, screenSize: CGSize) -> [Float] {
+        var vertices: [Float] = []
+        var cursorX: Float = 0.0  // Tracks the current X position for rendering
+        
+        for character in text {
+            guard let glyph = font.glyph(for: character) else { continue }
+            
+            // Glyph size and position
+            let glyphWidth = Float(glyph.size.width)
+            let glyphHeight = Float(glyph.size.height)
+            let glyphX = Float(glyph.position.x)
+            let glyphY = Float(glyph.position.y)
+            
+            // Vertex positions (screen-space coordinates)
+            let x1 = cursorX
+            let y1 = Float(0.0)
+            let x2 = cursorX + glyphWidth
+            let y2 = glyphHeight
+            
+            // Normalize screen coordinates if necessary
+            let screenWidth = Float(screenSize.width)
+            let screenHeight = Float(screenSize.height)
+            let pxToClipX = { (px: Float) in (px / screenWidth) * 2.0 - 1.0 }
+            let pxToClipY = { (py: Float) in (py / screenHeight) * 2.0 - 1.0 }
+            
+            let clipX1 = pxToClipX(x1)
+            let clipX2 = pxToClipX(x2)
+            let clipY1 = pxToClipY(y1)
+            let clipY2 = pxToClipY(y2)
+            
+            // Texture coordinates
+            let u1 = glyphX / Float(textureSize.width)
+            let v1 = 1.0 - (glyphY / Float(textureSize.height))
+            let u2 = (glyphX + glyphWidth) / Float(textureSize.width)
+            let v2 = 1.0 - ((glyphY + glyphHeight) / Float(textureSize.height))
+            
+            // Append vertices (triangle strip)
+            vertices += [
+                // Triangle 1
+                clipX1, clipY1, u1, v1,
+                clipX2, clipY1, u2, v1,
+                clipX1, clipY2, u1, v2,
+                
+                // Triangle 2
+                clipX1, clipY2, u1, v2,
+                clipX2, clipY1, u2, v1,
+                clipX2, clipY2, u2, v2
+            ]
+            
+            // Advance cursor for the next character
+            cursorX += glyphWidth
+        }
+        
+        return vertices
+    }
+    
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        setupVertices(for: "falsdkf", viewSize: size)
+    }
+    
+    func draw(in view: MTKView) {
+        guard let drawable = view.currentDrawable,
+              let renderPassDesc = view.currentRenderPassDescriptor,
+              let pipelineState = pipelineState,
+              let vertexBuffer = vertexBuffer
+        else { return }
+        
+        let commandBuffer = commandQueue.makeCommandBuffer()!
+        let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDesc)!
+        
+        encoder.setRenderPipelineState(pipelineState)
+        encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
+        encoder.setFragmentTexture(fontAtlas.atlasTexture, index: 0)
+        encoder.setFragmentSamplerState(samplerState, index: 0)
+        
+        let vertexCount = vertexBuffer.length / (4 * MemoryLayout<Float>.size) // 4 floats per vertex
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertexCount)
+        
+        encoder.endEncoding()
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
+    }
+    
 }
