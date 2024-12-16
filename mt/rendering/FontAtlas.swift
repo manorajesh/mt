@@ -11,6 +11,7 @@ import MetalKit
 class FontAtlas {
     var charSet = #" !#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"#
     var atlasTexture: MTLTexture?
+    var lineHeight: CGFloat?
     private var glyphs: [Character: Glyph] = [:]
     
     init?(device: MTLDevice, size: CGSize, font: NSFont) {
@@ -90,6 +91,7 @@ class FontAtlas {
                          bytesPerRow: 4 * bitmapWidth)
         
         atlasTexture = texture
+        lineHeight = String(" ").size(withAttributes: attributes).height
     }
     
     
