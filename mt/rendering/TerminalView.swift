@@ -16,7 +16,7 @@ class TerminalMTKView: MTKView {
     }
     
     override func keyDown(with event: NSEvent) {
-        super.keyDown(with: event)
+        //        super.keyDown(with: event)
         
         guard let characters = event.characters else { return }
         // Send the typed characters to the PTY
@@ -41,6 +41,18 @@ struct TerminalView: NSViewRepresentable {
         let device = MTLCreateSystemDefaultDevice()!
         let mtkView = TerminalMTKView(frame: .zero, device: device)
         
+        // Configure view for smooth rendering
+        mtkView.preferredFramesPerSecond = 60
+//        mtkView.enableSetNeedsDisplay = false  // Continuous rendering
+//        mtkView.isPaused = false
+//        mtkView.presentsWithTransaction = false // Reduce frame-to-frame latency
+//        mtkView.framebufferOnly = true
+//        mtkView.autoResizeDrawable = true
+        mtkView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1.0)
+        
+        // Enable triple buffering
+//        mtkView.maximumDrawableCount = 3
+        
         let renderer = Renderer(device: device, buffer: buffer)
         mtkView.delegate = renderer
         coordinator.renderer = renderer   // <--- Store renderer in our coordinator
@@ -59,7 +71,7 @@ struct TerminalView: NSViewRepresentable {
     /// Called whenever PTY has new output
     func refresh() {
         // Update the renderer with the new buffer state
-        coordinator.renderer?.updateVerticesForDirtyRows()
+        coordinator.renderer?.updateVerticesForBuffer()
         
         // Force the MTKView to redraw immediately
         // If the MTKView has enableSetNeedsDisplay = true, you can do:
@@ -99,7 +111,7 @@ class Renderer: NSObject, MTKViewDelegate {
     init(device: MTLDevice, buffer: Buffer) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
-        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: .monospacedSystemFont(ofSize: 50, weight: .regular ))!
+        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: .monospacedSystemFont(ofSize: 30, weight: .regular ))!
         self.buffer = buffer
         
         super.init()
@@ -164,10 +176,9 @@ class Renderer: NSObject, MTKViewDelegate {
                           textureSize: CGSize,
                           screenSize: CGSize,
                           cursorY: Float
-                            ) -> [Float] {
+    ) -> [Float] {
         var vertices: [Float] = []
         var cursorX: Float = 0.0
-//        var cursorY: Float = Float(screenSize.height)  // Start at top of the view
         
         for character in text {
             guard let glyph = font.glyph(for: character) else { continue }
@@ -220,12 +231,15 @@ class Renderer: NSObject, MTKViewDelegate {
         
         return vertices
     }
-
+    
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-//        setupVertices(for: "My Name Is Mano Rajesh", viewSize: size)
         viewSize = size
         setupVertices(for: "Hello World", viewSize: size)
+        let cols = Int(Int(size.width)/(fontAtlas.glyph(for: " ")?.size.width)!)
+        let rows = Int(size.height/fontAtlas.lineHeight!)
+        print("\(rows)x\(cols)")
+        buffer?.resize(rows: rows, cols: cols)
     }
     
     func draw(in view: MTKView) {
@@ -255,45 +269,37 @@ class Renderer: NSObject, MTKViewDelegate {
     }
     
     // Method to update vertices for dirty rows
-    func updateVerticesForDirtyRows() {
+    func updateVerticesForBuffer() {
         guard let buffer = buffer, let viewSize = viewSize else { return }
         
-        let dirtyRows = buffer.getDirtyRowsWithContent()
+        let dirtyRows = buffer.buffer
         guard !dirtyRows.isEmpty else { return }
-        
-        // Clear the old geometry
-        cachedVertices.removeAll()
         
         let textureSize = CGSize(width: fontAtlas.atlasTexture!.width,
                                  height: fontAtlas.atlasTexture!.height)
         let lineHeight: Float = Float(fontAtlas.lineHeight!)
         let totalHeight = Float(viewSize.height)
         
-        for (rowIndex, line) in dirtyRows {
-            let yPosition = totalHeight - (Float(rowIndex + 1) * lineHeight)
-            let vertices = generateVertices(
+        var yPosition = totalHeight
+        var vertices: [Float] = []
+        print()
+        for line in dirtyRows {
+            let lineVerts = generateVertices(
                 for: line.string,
                 font: fontAtlas,
                 textureSize: textureSize,
                 screenSize: viewSize,
                 cursorY: yPosition
             )
-            cachedVertices.append(contentsOf: vertices)
+            vertices += lineVerts
+            yPosition -= lineHeight
         }
         
         // Rebuild the vertex buffer
         vertexBuffer = device.makeBuffer(
-            bytes: cachedVertices,
-            length: cachedVertices.count * MemoryLayout<Float>.size,
+            bytes: vertices,
+            length: vertices.count * MemoryLayout<Float>.size,
             options: []
         )
-    }
-
-
-
-    // Define expected vertices per row based on font and viewport
-    private var expectedVerticesPerRow: Int {
-        // Assuming each character generates 6 vertices and a fixed number of columns
-        return buffer?.viewport.cols ?? 0 * 6 * 4  // 6 vertices * 4 floats per vertex
     }
 }

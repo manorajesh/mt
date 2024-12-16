@@ -7,20 +7,16 @@
 
 import Cocoa
 
-struct Viewport {
-    var topRow: Int
+class Buffer {
+    // 2D buffer: one line per row
+    var buffer: [NSMutableAttributedString]
+    
+    // Terminal dimensions
     var rows: Int
     var cols: Int
-}
-
-class Buffer {
-    var viewportBuffer: [NSMutableAttributedString]
-    var scrollbackBuffer: [NSMutableAttributedString]
-    var viewport: Viewport
-    var cursorPosition: (x: Int, y: Int) = (0, 0)
     
-    // Set to keep track of dirty rows
-    private var dirtyRows: Set<Int> = []
+    // Cursor position (x, y)
+    var cursorPosition: (x: Int, y: Int) = (0, 0)
     
     // Text attributes
     var currentForegroundColor: NSColor = .white
@@ -29,77 +25,70 @@ class Buffer {
     var isUnderlined: Bool = false
     
     init(rows: Int, cols: Int) {
-        self.viewport = Viewport(topRow: 0, rows: rows, cols: cols)
-        // Initialize the viewport buffer with empty lines
-        self.viewportBuffer = Array(repeating: NSMutableAttributedString(), count: rows)
-        // Initialize the scrollback buffer
-        self.scrollbackBuffer = []
+        self.rows = rows
+        self.cols = cols
+        // Initialize buffer with empty lines
+        self.buffer = Array(repeating: NSMutableAttributedString(), count: rows)
     }
     
     // MARK: - Cursor Movement
     
-    // Move cursor up by n positions
     func moveCursorUp(_ n: Int) {
         cursorPosition.y = max(cursorPosition.y - n, 0)
     }
     
-    // Move cursor down by n positions
     func moveCursorDown(_ n: Int) {
-        cursorPosition.y = min(cursorPosition.y + n, viewport.rows - 1)
+        cursorPosition.y = min(cursorPosition.y + n, rows - 1)
     }
     
-    // Move cursor forward by n positions
     func moveCursorForward(_ n: Int) {
-        cursorPosition.x = min(cursorPosition.x + n, viewport.cols - 1)
+        cursorPosition.x = min(cursorPosition.x + n, cols - 1)
     }
     
-    // Move cursor backward by n positions
     func moveCursorBackward(_ n: Int) {
         cursorPosition.x = max(cursorPosition.x - n, 0)
     }
     
-    // Set cursor position
     func setCursorPosition(x: Int, y: Int) {
-        cursorPosition.x = min(max(x, 0), viewport.cols - 1)
-        cursorPosition.y = min(max(y, 0), viewport.rows - 1)
+        cursorPosition.x = min(max(x, 0), cols - 1)
+        cursorPosition.y = min(max(y, 0), rows - 1)
+    }
+    
+    func scrollUp() {
+        // Remove the top row
+        if !buffer.isEmpty {
+            buffer.removeFirst()
+        }
+        // Append an empty line at the bottom
+        buffer.append(NSMutableAttributedString())
+        
+        // Clamp cursor to the last row
+        cursorPosition.y = rows - 1
     }
     
     // MARK: - Erase Functions
     
-    // Erase in display
     func eraseInDisplay(mode: Int) {
         switch mode {
-        case 0:
-            // Clear from cursor to end of screen
+        case 0: // Cursor to end of screen
             eraseBelow()
-        case 1:
-            // Clear from cursor to beginning of screen
+        case 1: // Beginning of screen to cursor
             eraseAbove()
-        case 2:
-            // Clear entire screen
-            viewportBuffer = Array(repeating: NSMutableAttributedString(), count: viewport.rows)
-            scrollbackBuffer.removeAll()
+        case 2: // Entire screen
+            buffer = Array(repeating: NSMutableAttributedString(), count: rows)
             setCursorPosition(x: 0, y: 0)
-            // Mark all rows as dirty
-            for row in 0..<viewport.rows {
-                dirtyRows.insert(row)
-            }
         default:
             break
         }
     }
     
-    // Erase in line
     func eraseInLine(mode: Int) {
         switch mode {
-        case 0:
-            // Clear from cursor to end of line
+        case 0: // Cursor to end of line
             eraseLineFromCursor()
-        case 1:
-            // Clear from beginning of line to cursor
+        case 1: // Start of line to cursor
             eraseLineToCursor()
-        case 2:
-            // Clear entire line
+        case 2: // Entire line
             eraseEntireLine()
         default:
             break
@@ -108,25 +97,20 @@ class Buffer {
     
     // MARK: - Graphic Rendition
     
-    // Apply graphic rendition
     func applyGraphicRendition(_ params: [Int]) {
         for code in params {
             switch code {
             case 0:
-                // Reset all attributes
                 resetAttributes()
             case 1:
                 isBold = true
             case 4:
                 isUnderlined = true
             case 30...37:
-                // Set foreground color
                 currentForegroundColor = ansiColor(code - 30)
             case 40...47:
-                // Set background color
                 currentBackgroundColor = ansiColor(code - 40)
             default:
-                // Handle other SGR codes if necessary
                 break
             }
         }
@@ -134,105 +118,85 @@ class Buffer {
     
     // MARK: - Character Handling
     
-    // Append character at current cursor position
     func appendChar(_ char: Character) {
         let currentRow = cursorPosition.y
+        guard currentRow >= 0 && currentRow < rows else { return }
         
-        // Ensure the cursor is within the viewport buffer
-        guard currentRow >= 0 && currentRow < viewport.rows else {
-            return
-        }
+        let line = buffer[currentRow]
         
-        // Initialize line if needed
-        let line = viewportBuffer[currentRow]
-        
-        // Fill the line with spaces if cursor.x is beyond current length
+        // Pad with spaces if needed
         if cursorPosition.x > line.length {
             let spaces = String(repeating: " ", count: cursorPosition.x - line.length)
             line.append(NSAttributedString(string: spaces))
         }
         
-        // Create attributes for the character
         var attributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: currentForegroundColor,
             .backgroundColor: currentBackgroundColor,
             .font: NSFont.monospacedSystemFont(ofSize: 14, weight: isBold ? .bold : .regular)
         ]
-        
         if isUnderlined {
             attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
         }
         
-        // Replace character at cursor position if necessary
         if cursorPosition.x < line.length {
-            line.replaceCharacters(in: NSRange(location: cursorPosition.x, length: 1), with: NSAttributedString(string: String(char), attributes: attributes))
+            line.replaceCharacters(
+                in: NSRange(location: cursorPosition.x, length: 1),
+                with: NSAttributedString(string: String(char), attributes: attributes)
+            )
         } else {
             line.append(NSAttributedString(string: String(char), attributes: attributes))
         }
         
-        // Mark the current row as dirty
-        dirtyRows.insert(currentRow)
-        
-        // Move the cursor to the right after inserting the character
         cursorPosition.x += 1
-        if cursorPosition.x >= viewport.cols {
+        if cursorPosition.x >= cols {
             cursorPosition.x = 0
             cursorPosition.y += 1
-            if cursorPosition.y >= viewport.rows {
+            if cursorPosition.y >= rows {
                 scrollUp()
             }
         }
     }
     
-    // Handle backspace
     func handleBackspace() {
         if cursorPosition.x > 0 {
             cursorPosition.x -= 1
         } else if cursorPosition.y > 0 {
             cursorPosition.y -= 1
-            cursorPosition.x = viewport.cols - 1
+            cursorPosition.x = cols - 1
         }
         
         let currentRow = cursorPosition.y
-        if currentRow < 0 || currentRow >= viewportBuffer.count {
-            return
-        }
+        guard currentRow >= 0 && currentRow < rows else { return }
         
-        let line = viewportBuffer[currentRow]
+        let line = buffer[currentRow]
         if line.length > cursorPosition.x {
             line.deleteCharacters(in: NSRange(location: cursorPosition.x, length: 1))
-            // Mark the current row as dirty
-            dirtyRows.insert(currentRow)
         }
     }
     
-    // Add carriage return
     func addCarriageReturn() {
         cursorPosition.x = 0
     }
     
-    // Add line feed
     func addLineFeed() {
         cursorPosition.y += 1
-        if cursorPosition.y >= viewport.rows {
+        if cursorPosition.y >= rows {
             scrollUp()
         }
     }
     
-    // Add new line
     func addNewLine() {
         addCarriageReturn()
         addLineFeed()
     }
     
-    // Advance cursor to the next tab stop (assuming tab stops every 8 columns)
     func advanceCursorToNextTabStop() {
         let tabSize = 8
         let nextTabStop = ((cursorPosition.x / tabSize) + 1) * tabSize
-        cursorPosition.x = min(nextTabStop, viewport.cols - 1)
+        cursorPosition.x = min(nextTabStop, cols - 1)
     }
     
-    // Reset text attributes to default
     func resetAttributes() {
         currentForegroundColor = .white
         currentBackgroundColor = .clear
@@ -240,7 +204,6 @@ class Buffer {
         isUnderlined = false
     }
     
-    // Map ANSI color codes to NSColor
     private func ansiColor(_ code: Int) -> NSColor {
         switch code {
         case 0: return .black
@@ -257,152 +220,91 @@ class Buffer {
     
     // MARK: - Erase Implementations
     
-    // Erase from cursor to end of screen
     private func eraseBelow() {
-        let currentRow = cursorPosition.y
-        let currentCol = cursorPosition.x
+        let y = cursorPosition.y
+        let x = cursorPosition.x
         
         // Erase current line from cursor to end
-        if currentRow >= 0 && currentRow < viewportBuffer.count {
-            let line = viewportBuffer[currentRow]
-            if line.length > currentCol {
-                line.deleteCharacters(in: NSRange(location: currentCol, length: line.length - currentCol))
-                // Mark the current row as dirty
-                dirtyRows.insert(currentRow)
+        if y >= 0 && y < buffer.count {
+            let line = buffer[y]
+            if line.length > x {
+                line.deleteCharacters(in: NSRange(location: x, length: line.length - x))
             }
         }
         
-        // Erase all lines below the current row
-        for y in (currentRow + 1)..<viewportBuffer.count {
-            viewportBuffer[y] = NSMutableAttributedString()
-            // Mark these rows as dirty
-            dirtyRows.insert(y)
+        // Erase all lines below
+        for row in (y + 1)..<buffer.count {
+            buffer[row] = NSMutableAttributedString()
         }
     }
     
-    // Erase from cursor to beginning of screen
     private func eraseAbove() {
-        let currentRow = cursorPosition.y
-        let currentCol = cursorPosition.x
+        let y = cursorPosition.y
+        let x = cursorPosition.x
         
-        // Erase current line from beginning to cursor
-        if currentRow >= 0 && currentRow < viewportBuffer.count {
-            let line = viewportBuffer[currentRow]
-            if currentCol >= 0 {
-                let length = min(currentCol + 1, line.length)
+        // Erase current line from start to cursor
+        if y >= 0 && y < buffer.count {
+            let line = buffer[y]
+            if x >= 0 {
+                let length = min(x + 1, line.length)
                 line.deleteCharacters(in: NSRange(location: 0, length: length))
-                // Mark the current row as dirty
-                dirtyRows.insert(currentRow)
             }
         }
         
-        // Erase all lines above the current row
-        for y in 0..<currentRow {
-            viewportBuffer[y] = NSMutableAttributedString()
-            // Mark these rows as dirty
-            dirtyRows.insert(y)
+        // Erase all lines above
+        for row in 0..<y {
+            buffer[row] = NSMutableAttributedString()
         }
     }
     
-    // Erase from cursor to end of line
     private func eraseLineFromCursor() {
-        let currentRow = cursorPosition.y
-        let currentCol = cursorPosition.x
+        let y = cursorPosition.y
+        let x = cursorPosition.x
         
-        if currentRow >= 0 && currentRow < viewportBuffer.count {
-            let line = viewportBuffer[currentRow]
-            if line.length > currentCol {
-                line.deleteCharacters(in: NSRange(location: currentCol, length: line.length - currentCol))
-                // Mark the current row as dirty
-                dirtyRows.insert(currentRow)
+        if y >= 0 && y < buffer.count {
+            let line = buffer[y]
+            if line.length > x {
+                line.deleteCharacters(in: NSRange(location: x, length: line.length - x))
             }
         }
     }
     
-    // Erase from beginning of line to cursor
     private func eraseLineToCursor() {
-        let currentRow = cursorPosition.y
-        let currentCol = cursorPosition.x
+        let y = cursorPosition.y
+        let x = cursorPosition.x
         
-        if currentRow >= 0 && currentRow < viewportBuffer.count {
-            let line = viewportBuffer[currentRow]
-            if currentCol >= 0 {
-                let length = min(currentCol + 1, line.length)
+        if y >= 0 && y < buffer.count {
+            let line = buffer[y]
+            if x >= 0 {
+                let length = min(x + 1, line.length)
                 line.deleteCharacters(in: NSRange(location: 0, length: length))
-                // Mark the current row as dirty
-                dirtyRows.insert(currentRow)
             }
         }
     }
     
-    // Erase entire line
     private func eraseEntireLine() {
-        let currentRow = cursorPosition.y
-        
-        if currentRow >= 0 && currentRow < viewportBuffer.count {
-            viewportBuffer[currentRow] = NSMutableAttributedString()
-            // Mark the current row as dirty
-            dirtyRows.insert(currentRow)
+        let y = cursorPosition.y
+        if y >= 0 && y < buffer.count {
+            buffer[y] = NSMutableAttributedString()
         }
     }
     
-    // MARK: - Viewport Management
+    // MARK: - Resizing
     
-    // Resize the viewport dimensions
-    public func resizeViewport(rows: Int, cols: Int) {
-        self.viewport.rows = rows
-        self.viewport.cols = cols
+    func resize(rows newRows: Int, cols newCols: Int) {
+        self.rows = newRows
+        self.cols = newCols
         
-        // Adjust viewport buffer size
-        if rows > viewportBuffer.count {
-            let additionalRows = rows - viewportBuffer.count
-            viewportBuffer.append(contentsOf: Array(repeating: NSMutableAttributedString(), count: additionalRows))
-        } else if rows < viewportBuffer.count {
-            let removedLines = viewportBuffer[rows...]
-            scrollbackBuffer.insert(contentsOf: removedLines, at: 0)
-            viewportBuffer = Array(viewportBuffer[0..<rows])
+        // Adjust buffer size
+        if newRows > buffer.count {
+            let additional = newRows - buffer.count
+            buffer.append(contentsOf: Array(repeating: NSMutableAttributedString(), count: additional))
+        } else if newRows < buffer.count {
+            buffer.removeLast(buffer.count - newRows)
         }
         
-        // Ensure cursor is within new viewport
-        cursorPosition.x = min(cursorPosition.x, cols - 1)
-        cursorPosition.y = min(cursorPosition.y, rows - 1)
-        
-        // Mark all rows as dirty since the viewport changed
-        for row in 0..<viewport.rows {
-            dirtyRows.insert(row)
-        }
-    }
-    
-    // Scroll the buffer up by one row
-    public func scrollUp() {
-        // Move the first line of the viewport buffer to the scrollback buffer
-        if let firstLine = viewportBuffer.first {
-            scrollbackBuffer.append(firstLine)
-            viewportBuffer.removeFirst()
-            viewportBuffer.append(NSMutableAttributedString())
-            // Adjust dirty rows
-            //            dirtyRows = Set(dirtyRows.map { $0 - 1 })
-            //            dirtyRows.insert(viewport.rows - 1)
-            for index in 0..<viewport.rows {
-                dirtyRows.insert(index)
-            }
-        }
-        cursorPosition.y = max(cursorPosition.y - 1, viewport.rows - 1)
-    }
-    
-    // MARK: - Dirty Rows Handling
-    
-    // Get the list of dirty rows and clear the set
-    public func getDirtyRows() -> [Int] {
-        let rows = Array(dirtyRows)
-        dirtyRows.removeAll()
-        return rows.sorted()
-    }
-
-    // Get dirty rows with content and clear the dirty set
-    public func getDirtyRowsWithContent() -> [(row: Int, content: NSMutableAttributedString)] {
-        let dirtyRowsArray = Array(dirtyRows)
-        dirtyRows.removeAll()
-        return dirtyRowsArray.map { ($0, viewportBuffer[$0]) }
+        // Ensure cursor is in-bounds
+        cursorPosition.x = min(cursorPosition.x, newCols - 1)
+        cursorPosition.y = min(cursorPosition.y, newRows - 1)
     }
 }

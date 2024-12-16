@@ -84,7 +84,7 @@ class Pty {
                         localView.refresh()
                     }
                 }
-                usleep(10000)  // 10ms delay to avoid busy-waiting
+                usleep(10)   // 10ms delay to avoid busy-waiting
             }
         }
     }
