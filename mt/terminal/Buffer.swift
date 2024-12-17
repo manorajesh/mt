@@ -1,15 +1,28 @@
-//
-//  Buffer.swift
-//  mt
-//
-//  Created by Mano Rajesh on 10/15/24.
-//
-
 import Cocoa
 
+struct CharacterCell {
+    var character: Character
+    var foregroundColor: NSColor
+    var backgroundColor: NSColor
+    var isBold: Bool
+    var isUnderlined: Bool
+    
+    init(character: Character = " ",
+         foregroundColor: NSColor = .white,
+         backgroundColor: NSColor = .clear,
+         isBold: Bool = false,
+         isUnderlined: Bool = false) {
+        self.character = character
+        self.foregroundColor = foregroundColor
+        self.backgroundColor = backgroundColor
+        self.isBold = isBold
+        self.isUnderlined = isUnderlined
+    }
+}
+
 class Buffer {
-    // 2D buffer: one line per row
-    var buffer: [NSMutableAttributedString]
+    // 2D buffer: [row][column]
+    var buffer: [[CharacterCell]]
     
     // Terminal dimensions
     var rows: Int
@@ -18,17 +31,13 @@ class Buffer {
     // Cursor position (x, y)
     var cursorPosition: (x: Int, y: Int) = (0, 0)
     
-    // Text attributes
-    var currentForegroundColor: NSColor = .white
-    var currentBackgroundColor: NSColor = .clear
-    var isBold: Bool = false
-    var isUnderlined: Bool = false
+    // Current attributes
+    private var currentAttributes: CharacterCell = CharacterCell()
     
     init(rows: Int, cols: Int) {
         self.rows = rows
         self.cols = cols
-        // Initialize buffer with empty lines
-        self.buffer = Array(repeating: NSMutableAttributedString(), count: rows)
+        self.buffer = Array(repeating: Array(repeating: CharacterCell(), count: cols), count: rows)
     }
     
     // MARK: - Cursor Movement
@@ -55,14 +64,8 @@ class Buffer {
     }
     
     func scrollUp() {
-        // Remove the top row
-        if !buffer.isEmpty {
-            buffer.removeFirst()
-        }
-        // Append an empty line at the bottom
-        buffer.append(NSMutableAttributedString())
-        
-        // Clamp cursor to the last row
+        buffer.removeFirst()
+        buffer.append(Array(repeating: CharacterCell(), count: cols))
         cursorPosition.y = rows - 1
     }
     
@@ -75,7 +78,7 @@ class Buffer {
         case 1: // Beginning of screen to cursor
             eraseAbove()
         case 2: // Entire screen
-            buffer = Array(repeating: NSMutableAttributedString(), count: rows)
+            buffer = Array(repeating: Array(repeating: CharacterCell(), count: cols), count: rows)
             setCursorPosition(x: 0, y: 0)
         default:
             break
@@ -101,15 +104,15 @@ class Buffer {
         for code in params {
             switch code {
             case 0:
-                resetAttributes()
+                currentAttributes = CharacterCell()
             case 1:
-                isBold = true
+                currentAttributes.isBold = true
             case 4:
-                isUnderlined = true
+                currentAttributes.isUnderlined = true
             case 30...37:
-                currentForegroundColor = ansiColor(code - 30)
+                currentAttributes.foregroundColor = ansiColor(code - 30)
             case 40...47:
-                currentBackgroundColor = ansiColor(code - 40)
+                currentAttributes.backgroundColor = ansiColor(code - 40)
             default:
                 break
             }
@@ -119,34 +122,12 @@ class Buffer {
     // MARK: - Character Handling
     
     func appendChar(_ char: Character) {
-        let currentRow = cursorPosition.y
-        guard currentRow >= 0 && currentRow < rows else { return }
+        guard cursorPosition.y >= 0 && cursorPosition.y < rows,
+              cursorPosition.x >= 0 && cursorPosition.x < cols else { return }
         
-        let line = buffer[currentRow]
-        
-        // Pad with spaces if needed
-        if cursorPosition.x > line.length {
-            let spaces = String(repeating: " ", count: cursorPosition.x - line.length)
-            line.append(NSAttributedString(string: spaces))
-        }
-        
-        var attributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: currentForegroundColor,
-            .backgroundColor: currentBackgroundColor,
-            .font: NSFont.monospacedSystemFont(ofSize: 14, weight: isBold ? .bold : .regular)
-        ]
-        if isUnderlined {
-            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-        }
-        
-        if cursorPosition.x < line.length {
-            line.replaceCharacters(
-                in: NSRange(location: cursorPosition.x, length: 1),
-                with: NSAttributedString(string: String(char), attributes: attributes)
-            )
-        } else {
-            line.append(NSAttributedString(string: String(char), attributes: attributes))
-        }
+        var cell = currentAttributes
+        cell.character = char
+        buffer[cursorPosition.y][cursorPosition.x] = cell
         
         cursorPosition.x += 1
         if cursorPosition.x >= cols {
@@ -161,17 +142,10 @@ class Buffer {
     func handleBackspace() {
         if cursorPosition.x > 0 {
             cursorPosition.x -= 1
+            buffer[cursorPosition.y][cursorPosition.x] = CharacterCell()
         } else if cursorPosition.y > 0 {
             cursorPosition.y -= 1
             cursorPosition.x = cols - 1
-        }
-        
-        let currentRow = cursorPosition.y
-        guard currentRow >= 0 && currentRow < rows else { return }
-        
-        let line = buffer[currentRow]
-        if line.length > cursorPosition.x {
-            line.deleteCharacters(in: NSRange(location: cursorPosition.x, length: 1))
         }
     }
     
@@ -198,10 +172,7 @@ class Buffer {
     }
     
     func resetAttributes() {
-        currentForegroundColor = .white
-        currentBackgroundColor = .clear
-        isBold = false
-        isUnderlined = false
+        currentAttributes = CharacterCell()
     }
     
     private func ansiColor(_ code: Int) -> NSColor {
@@ -221,87 +192,60 @@ class Buffer {
     // MARK: - Erase Implementations
     
     private func eraseBelow() {
-        let y = cursorPosition.y
-        let x = cursorPosition.x
-        
-        // Erase current line from cursor to end
-        if y >= 0 && y < buffer.count {
-            let line = buffer[y]
-            if line.length > x {
-                line.deleteCharacters(in: NSRange(location: x, length: line.length - x))
-            }
+        // Clear current line from cursor
+        for x in cursorPosition.x..<cols {
+            buffer[cursorPosition.y][x] = CharacterCell()
         }
         
-        // Erase all lines below
-        for row in (y + 1)..<buffer.count {
-            buffer[row] = NSMutableAttributedString()
+        // Clear all lines below
+        for y in (cursorPosition.y + 1)..<rows {
+            buffer[y] = Array(repeating: CharacterCell(), count: cols)
         }
     }
     
     private func eraseAbove() {
-        let y = cursorPosition.y
-        let x = cursorPosition.x
-        
-        // Erase current line from start to cursor
-        if y >= 0 && y < buffer.count {
-            let line = buffer[y]
-            if x >= 0 {
-                let length = min(x + 1, line.length)
-                line.deleteCharacters(in: NSRange(location: 0, length: length))
-            }
+        // Clear current line up to cursor
+        for x in 0...cursorPosition.x {
+            buffer[cursorPosition.y][x] = CharacterCell()
         }
         
-        // Erase all lines above
-        for row in 0..<y {
-            buffer[row] = NSMutableAttributedString()
+        // Clear all lines above
+        for y in 0..<cursorPosition.y {
+            buffer[y] = Array(repeating: CharacterCell(), count: cols)
         }
     }
     
     private func eraseLineFromCursor() {
-        let y = cursorPosition.y
-        let x = cursorPosition.x
-        
-        if y >= 0 && y < buffer.count {
-            let line = buffer[y]
-            if line.length > x {
-                line.deleteCharacters(in: NSRange(location: x, length: line.length - x))
-            }
+        for x in cursorPosition.x..<cols {
+            buffer[cursorPosition.y][x] = CharacterCell()
         }
     }
     
     private func eraseLineToCursor() {
-        let y = cursorPosition.y
-        let x = cursorPosition.x
-        
-        if y >= 0 && y < buffer.count {
-            let line = buffer[y]
-            if x >= 0 {
-                let length = min(x + 1, line.length)
-                line.deleteCharacters(in: NSRange(location: 0, length: length))
-            }
+        for x in 0...cursorPosition.x {
+            buffer[cursorPosition.y][x] = CharacterCell()
         }
     }
     
     private func eraseEntireLine() {
-        let y = cursorPosition.y
-        if y >= 0 && y < buffer.count {
-            buffer[y] = NSMutableAttributedString()
-        }
+        buffer[cursorPosition.y] = Array(repeating: CharacterCell(), count: cols)
     }
     
     // MARK: - Resizing
     
     func resize(rows newRows: Int, cols newCols: Int) {
+        var newBuffer = Array(repeating: Array(repeating: CharacterCell(), count: newCols), count: newRows)
+        
+        // Copy existing content that fits in the new dimensions
+        for y in 0..<min(rows, newRows) {
+            for x in 0..<min(cols, newCols) {
+                newBuffer[y][x] = buffer[y][x]
+            }
+        }
+        
         self.rows = newRows
         self.cols = newCols
-        
-        // Adjust buffer size
-        if newRows > buffer.count {
-            let additional = newRows - buffer.count
-            buffer.append(contentsOf: Array(repeating: NSMutableAttributedString(), count: additional))
-        } else if newRows < buffer.count {
-            buffer.removeLast(buffer.count - newRows)
-        }
+        self.buffer = newBuffer
         
         // Ensure cursor is in-bounds
         cursorPosition.x = min(cursorPosition.x, newCols - 1)

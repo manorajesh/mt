@@ -43,15 +43,10 @@ struct TerminalView: NSViewRepresentable {
         
         // Configure view for smooth rendering
         mtkView.preferredFramesPerSecond = 60
-//        mtkView.enableSetNeedsDisplay = false  // Continuous rendering
-//        mtkView.isPaused = false
-//        mtkView.presentsWithTransaction = false // Reduce frame-to-frame latency
-//        mtkView.framebufferOnly = true
-//        mtkView.autoResizeDrawable = true
         mtkView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1.0)
         
         // Enable triple buffering
-//        mtkView.maximumDrawableCount = 3
+        //        mtkView.maximumDrawableCount = 3
         
         let renderer = Renderer(device: device, buffer: buffer)
         mtkView.delegate = renderer
@@ -111,7 +106,7 @@ class Renderer: NSObject, MTKViewDelegate {
     init(device: MTLDevice, buffer: Buffer) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
-        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: .monospacedSystemFont(ofSize: 30, weight: .regular ))!
+        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: NSFont(name: "Monaco", size: 30)!)!
         self.buffer = buffer
         
         super.init()
@@ -181,55 +176,66 @@ class Renderer: NSObject, MTKViewDelegate {
         var cursorX: Float = 0.0
         
         for character in text {
-            guard let glyph = font.glyph(for: character) else { continue }
-            
-            let glyphWidth  = Float(glyph.size.width)
-            let glyphHeight = Float(glyph.size.height)
-            let glyphX = Float(glyph.position.x)
-            let glyphY = Float(glyph.position.y)
-            
-            // The quad’s top-left is (cursorX, cursorY).
-            // The quad’s bottom-left is (cursorX, cursorY - glyphHeight).
-            let x1 = cursorX
-            let x2 = cursorX + glyphWidth
-            let y2 = cursorY             // top
-            let y1 = cursorY - glyphHeight  // bottom
-            
-            // Convert to clip space
-            let screenWidth  = Float(screenSize.width)
-            let screenHeight = Float(screenSize.height)
-            let pxToClipX = { (px: Float) in (px / screenWidth) * 2.0 - 1.0 }
-            let pxToClipY = { (py: Float) in (py / screenHeight) * 2.0 - 1.0 }
-            
-            let clipX1 = pxToClipX(x1)
-            let clipX2 = pxToClipX(x2)
-            let clipY1 = pxToClipY(y1)
-            let clipY2 = pxToClipY(y2)
-            
-            // Texture coordinates (flipping v if needed)
-            let u1 = glyphX / Float(textureSize.width)
-            let v1 = 1.0 - (glyphY / Float(textureSize.height))
-            let u2 = (glyphX + glyphWidth) / Float(textureSize.width)
-            let v2 = 1.0 - ((glyphY + glyphHeight) / Float(textureSize.height))
-            
-            // Use triangle list (6 verts per character)
-            vertices += [
-                // Triangle 1
-                clipX1, clipY1, u1, v1,
-                clipX2, clipY1, u2, v1,
-                clipX1, clipY2, u1, v2,
-                
-                // Triangle 2
-                clipX1, clipY2, u1, v2,
-                clipX2, clipY1, u2, v1,
-                clipX2, clipY2, u2, v2
-            ]
-            
-            // Advance cursorX for the next character
-            cursorX += glyphWidth
+            if let (charVerts, xOffset) = generateQuad(for: character, font: fontAtlas, textureSize: textureSize, screenSize: screenSize, cursorX: cursorX, cursorY: cursorY) {
+                vertices += charVerts
+                // Advance cursorX for the next character
+                cursorX += xOffset
+            }
         }
         
         return vertices
+    }
+    
+    func generateQuad(for char: Character,
+                      font: FontAtlas,
+                      textureSize: CGSize,
+                      screenSize: CGSize,
+                      cursorX: Float,
+                      cursorY: Float
+    ) -> ([Float], Float)? {
+        guard let glyph = font.glyph(for: char) else { return nil }
+        
+        let glyphWidth  = Float(glyph.size.width)
+        let glyphHeight = Float(glyph.size.height)
+        let glyphX = Float(glyph.position.x)
+        let glyphY = Float(glyph.position.y)
+        
+        // The quad’s top-left is (cursorX, cursorY).
+        // The quad’s bottom-left is (cursorX, cursorY - glyphHeight).
+        let x1 = cursorX
+        let x2 = cursorX + glyphWidth
+        let y2 = cursorY             // top
+        let y1 = cursorY - glyphHeight  // bottom
+        
+        // Convert to clip space
+        let screenWidth  = Float(screenSize.width)
+        let screenHeight = Float(screenSize.height)
+        let pxToClipX = { (px: Float) in (px / screenWidth) * 2.0 - 1.0 }
+        let pxToClipY = { (py: Float) in (py / screenHeight) * 2.0 - 1.0 }
+        
+        let clipX1 = pxToClipX(x1)
+        let clipX2 = pxToClipX(x2)
+        let clipY1 = pxToClipY(y1)
+        let clipY2 = pxToClipY(y2)
+        
+        // Texture coordinates (flipping v if needed)
+        let u1 = glyphX / Float(textureSize.width)
+        let v1 = 1.0 - (glyphY / Float(textureSize.height))
+        let u2 = (glyphX + glyphWidth) / Float(textureSize.width)
+        let v2 = 1.0 - ((glyphY + glyphHeight) / Float(textureSize.height))
+        
+        // Use triangle list (6 verts per character)
+        return ([
+            // Triangle 1
+            clipX1, clipY1, u1, v1,
+            clipX2, clipY1, u2, v1,
+            clipX1, clipY2, u1, v2,
+            
+            // Triangle 2
+            clipX1, clipY2, u1, v2,
+            clipX2, clipY1, u2, v1,
+            clipX2, clipY2, u2, v2
+        ], glyphWidth)
     }
     
     
@@ -280,18 +286,17 @@ class Renderer: NSObject, MTKViewDelegate {
         let lineHeight: Float = Float(fontAtlas.lineHeight!)
         let totalHeight = Float(viewSize.height)
         
+        var xPosition = Float(0.0)
         var yPosition = totalHeight
         var vertices: [Float] = []
-        print()
         for line in dirtyRows {
-            let lineVerts = generateVertices(
-                for: line.string,
-                font: fontAtlas,
-                textureSize: textureSize,
-                screenSize: viewSize,
-                cursorY: yPosition
-            )
-            vertices += lineVerts
+            for char in line {
+                if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition) {
+                    vertices += charVerts
+                    xPosition += xOffset
+                }
+            }
+            xPosition = 0.0
             yPosition -= lineHeight
         }
         
