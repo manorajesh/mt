@@ -188,32 +188,6 @@ class Renderer: NSObject, MTKViewDelegate {
         samplerState = device.makeSamplerState(descriptor: samplerDescriptor)
     }
     
-    func setupVertices(for text: String, viewSize: CGSize) {
-        let textureSize = CGSize(width: fontAtlas.atlasTexture!.width, height: fontAtlas.atlasTexture!.height)
-        let vertices = generateVertices(for: text, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorY: Float(viewSize.height))
-        vertexBuffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<Float>.size, options: [])
-    }
-    
-    func generateVertices(for text: String,
-                          font: FontAtlas,
-                          textureSize: CGSize,
-                          screenSize: CGSize,
-                          cursorY: Float
-    ) -> [Float] {
-        var vertices: [Float] = []
-        var cursorX: Float = 0.0
-        
-        for character in text {
-            if let (charVerts, xOffset) = generateQuad(for: character, font: fontAtlas, textureSize: textureSize, screenSize: screenSize, cursorX: cursorX, cursorY: cursorY, fgColor: .white, bgColor: .clear) {
-                vertices += charVerts
-                // Advance cursorX for the next character
-                cursorX += xOffset
-            }
-        }
-        
-        return vertices
-    }
-    
     func generateQuad(for char: Character,
                       font: FontAtlas,
                       textureSize: CGSize,
