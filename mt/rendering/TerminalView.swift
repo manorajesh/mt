@@ -287,7 +287,6 @@ class Renderer: NSObject, MTKViewDelegate {
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         viewSize = size
-//        setupVertices(for: "Hello World", viewSize: size)
         let cols = Int(Int(size.width)/(fontAtlas.glyph(for: " ")?.size.width)!)
         let rows = Int(size.height/fontAtlas.lineHeight!)
         print("\(rows)x\(cols)")
@@ -324,10 +323,7 @@ class Renderer: NSObject, MTKViewDelegate {
     
     // Method to update vertices for dirty rows
     func updateVerticesForBuffer() {
-        guard let buffer = buffer, let viewSize = viewSize else { return }
-        
-        let dirtyRows = buffer.buffer
-        guard !dirtyRows.isEmpty else { return }
+        guard let buffer = buffer?.buffer, let viewSize = viewSize else { return }
         
         let textureSize = CGSize(width: fontAtlas.atlasTexture!.width,
                                  height: fontAtlas.atlasTexture!.height)
@@ -337,7 +333,7 @@ class Renderer: NSObject, MTKViewDelegate {
         var xPosition = Float(0.0)
         var yPosition = totalHeight
         var vertices: [Float] = []
-        for line in dirtyRows {
+        for line in buffer {
             for char in line {
                 if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
                     vertices += charVerts
@@ -347,6 +343,8 @@ class Renderer: NSObject, MTKViewDelegate {
             xPosition = 0.0
             yPosition -= lineHeight
         }
+        
+        if vertices.isEmpty { return }
         
         // Rebuild the vertex buffer
         vertexBuffer = device.makeBuffer(

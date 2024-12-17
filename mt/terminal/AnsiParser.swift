@@ -35,6 +35,8 @@ class AnsiParser {
         case .normal:
             if char == "\u{1B}" {
                 state = .escape
+            } else if byte == 0x08 {
+                buffer.handleBackspace()
             } else if char == "\n" {
                 buffer.addNewLine()
             } else if char == "\r" {
