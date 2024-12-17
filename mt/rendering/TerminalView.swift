@@ -19,8 +19,19 @@ class TerminalMTKView: MTKView {
         //        super.keyDown(with: event)
         
         guard let characters = event.characters else { return }
+        switch event.keyCode {
+            case 0x7E:
+                pty?.sendSpecialKey(.arrowUp)
+            case 0x7D:
+                pty?.sendSpecialKey(.arrowDown)
+            case 0x7B:
+                pty?.sendSpecialKey(.arrowLeft)
+            case 0x7C:
+                pty?.sendSpecialKey(.arrowRight)
+            default:
+                pty?.sendInput(characters)
+        }
         // Send the typed characters to the PTY
-        pty?.sendInput(characters)
     }
     
     // Handle special keys, arrow keys, etc.
@@ -213,12 +224,6 @@ class Renderer: NSObject, MTKViewDelegate {
                       bgColor: NSColor
     ) -> ([Float], Float)? {
         guard let glyph = font.glyph(for: char) else { return nil }
-        
-        // Don't generate quads for empty spaces
-        // to reduce number of quads in viewport
-        if char == " " {
-            return ([], Float(glyph.size.width))
-        }
         
         let glyphWidth  = Float(glyph.size.width)
         let glyphHeight = Float(glyph.size.height)
