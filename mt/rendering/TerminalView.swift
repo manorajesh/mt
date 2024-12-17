@@ -48,9 +48,9 @@ struct TerminalView: NSViewRepresentable {
         // Enable triple buffering
         //        mtkView.maximumDrawableCount = 3
         
-        let renderer = Renderer(device: device, buffer: buffer)
+        let renderer = Renderer(device: device, buffer: buffer, pty: pty)
         mtkView.delegate = renderer
-        coordinator.renderer = renderer   // <--- Store renderer in our coordinator
+        coordinator.renderer = renderer
         
         // Assign the pty reference so keyDown can forward input
         mtkView.pty = pty
@@ -85,12 +85,15 @@ struct TerminalView: NSViewRepresentable {
 }
 
 
+// MARK: - Metal Renderer
+
 struct Vertex {
-    var position: SIMD2<Float>
-    var texCoord: SIMD2<Float>
+    var position:  SIMD2<Float>
+    var texCoord:  SIMD2<Float>
+    var fgColor:   SIMD4<Float>   // RGBA
+    var bgColor:   SIMD4<Float>   // RGBA
 }
 
-// MARK: - Metal Renderer
 class Renderer: NSObject, MTKViewDelegate {
     var device: MTLDevice
     var commandQueue: MTLCommandQueue
@@ -102,12 +105,14 @@ class Renderer: NSObject, MTKViewDelegate {
     var viewSize: CGSize?
     
     var buffer: Buffer?
+    var pty: Pty?
     
-    init(device: MTLDevice, buffer: Buffer) {
+    init(device: MTLDevice, buffer: Buffer, pty: Pty) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
         self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: NSFont(name: "Monaco", size: 30)!)!
         self.buffer = buffer
+        self.pty = pty
         
         super.init()
         
@@ -127,19 +132,31 @@ class Renderer: NSObject, MTKViewDelegate {
         
         let vertexDescriptor = MTLVertexDescriptor()
         
-        // Attribute 0: Position
-        vertexDescriptor.attributes[0].format = .float2  // 2 floats for position (x, y)
-        vertexDescriptor.attributes[0].offset = 0        // Position starts at the beginning of the vertex
-        vertexDescriptor.attributes[0].bufferIndex = 0  // Tied to vertex buffer 0
+        // Position (attribute 0)
+        vertexDescriptor.attributes[0].format      = .float2
+        vertexDescriptor.attributes[0].offset      = 0
+        vertexDescriptor.attributes[0].bufferIndex = 0
         
-        // Attribute 1: Texture Coordinates
-        vertexDescriptor.attributes[1].format = .float2  // 2 floats for texture coordinates (u, v)
-        vertexDescriptor.attributes[1].offset = MemoryLayout<SIMD2<Float>>.stride  // Offset after position
-        vertexDescriptor.attributes[1].bufferIndex = 0  // Same buffer as position
+        // TexCoords (attribute 1)
+        vertexDescriptor.attributes[1].format      = .float2
+        vertexDescriptor.attributes[1].offset      = MemoryLayout<SIMD2<Float>>.stride
+        vertexDescriptor.attributes[1].bufferIndex = 0
         
-        // Layout for Buffer 0
-        vertexDescriptor.layouts[0].stride = MemoryLayout<Vertex>.stride  // Stride of the entire vertex
+        // Foreground color (attribute 2)
+        vertexDescriptor.attributes[2].format      = .float4
+        vertexDescriptor.attributes[2].offset      = MemoryLayout<SIMD2<Float>>.stride * 2
+        vertexDescriptor.attributes[2].bufferIndex = 0
+        
+        // Background color (attribute 3)
+        vertexDescriptor.attributes[3].format      = .float4
+        vertexDescriptor.attributes[3].offset      = MemoryLayout<SIMD2<Float>>.stride * 2 + MemoryLayout<SIMD4<Float>>.stride
+        vertexDescriptor.attributes[3].bufferIndex = 0
+        
+        vertexDescriptor.layouts[0].stride = MemoryLayout<Vertex>.stride
         vertexDescriptor.layouts[0].stepFunction = .perVertex
+        
+        pipelineDescriptor.vertexDescriptor = vertexDescriptor
+
         
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
         
@@ -176,7 +193,7 @@ class Renderer: NSObject, MTKViewDelegate {
         var cursorX: Float = 0.0
         
         for character in text {
-            if let (charVerts, xOffset) = generateQuad(for: character, font: fontAtlas, textureSize: textureSize, screenSize: screenSize, cursorX: cursorX, cursorY: cursorY) {
+            if let (charVerts, xOffset) = generateQuad(for: character, font: fontAtlas, textureSize: textureSize, screenSize: screenSize, cursorX: cursorX, cursorY: cursorY, fgColor: .white, bgColor: .clear) {
                 vertices += charVerts
                 // Advance cursorX for the next character
                 cursorX += xOffset
@@ -191,9 +208,17 @@ class Renderer: NSObject, MTKViewDelegate {
                       textureSize: CGSize,
                       screenSize: CGSize,
                       cursorX: Float,
-                      cursorY: Float
+                      cursorY: Float,
+                      fgColor: NSColor,
+                      bgColor: NSColor
     ) -> ([Float], Float)? {
         guard let glyph = font.glyph(for: char) else { return nil }
+        
+        // Don't generate quads for empty spaces
+        // to reduce number of quads in viewport
+        if char == " " {
+            return ([], Float(glyph.size.width))
+        }
         
         let glyphWidth  = Float(glyph.size.width)
         let glyphHeight = Float(glyph.size.height)
@@ -224,28 +249,51 @@ class Renderer: NSObject, MTKViewDelegate {
         let u2 = (glyphX + glyphWidth) / Float(textureSize.width)
         let v2 = 1.0 - ((glyphY + glyphHeight) / Float(textureSize.height))
         
-        // Use triangle list (6 verts per character)
-        return ([
-            // Triangle 1
-            clipX1, clipY1, u1, v1,
-            clipX2, clipY1, u2, v1,
-            clipX1, clipY2, u1, v2,
+        // Convert NSColor to an RGB color space first
+        let fgRGB = fgColor.usingColorSpace(.extendedSRGB) ?? fgColor
+        let bgRGB = bgColor.usingColorSpace(.extendedSRGB) ?? bgColor
+        
+        let fgR = Float(fgRGB.redComponent)
+        let fgG = Float(fgRGB.greenComponent)
+        let fgB = Float(fgRGB.blueComponent)
+        let fgA = Float(fgRGB.alphaComponent)
+        
+        let bgR = Float(bgRGB.redComponent)
+        let bgG = Float(bgRGB.greenComponent)
+        let bgB = Float(bgRGB.blueComponent)
+        let bgA = Float(bgRGB.alphaComponent)
+        
+        // Build 6 vertices (2 triangles) with 12 floats each:
+        // (pos.x, pos.y, tex.u, tex.v, fgRGBA(4 floats), bgRGBA(4 floats))
+        
+        // Triangle 1
+        let quadData: [Float] = [
+            // Vertex 1
+            clipX1, clipY1, u1, v1, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            // Vertex 2
+            clipX2, clipY1, u2, v1, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            // Vertex 3
+            clipX1, clipY2, u1, v2, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
             
             // Triangle 2
-            clipX1, clipY2, u1, v2,
-            clipX2, clipY1, u2, v1,
-            clipX2, clipY2, u2, v2
-        ], glyphWidth)
+            clipX1, clipY2, u1, v2, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            clipX2, clipY1, u2, v1, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            clipX2, clipY2, u2, v2, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA
+        ]
+        
+        return (quadData, glyphWidth)
     }
     
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         viewSize = size
-        setupVertices(for: "Hello World", viewSize: size)
+//        setupVertices(for: "Hello World", viewSize: size)
         let cols = Int(Int(size.width)/(fontAtlas.glyph(for: " ")?.size.width)!)
         let rows = Int(size.height/fontAtlas.lineHeight!)
         print("\(rows)x\(cols)")
         buffer?.resize(rows: rows, cols: cols)
+        pty?.resizePty(rows: UInt16(rows), cols: UInt16(cols))
+        updateVerticesForBuffer()
     }
     
     func draw(in view: MTKView) {
@@ -291,7 +339,7 @@ class Renderer: NSObject, MTKViewDelegate {
         var vertices: [Float] = []
         for line in dirtyRows {
             for char in line {
-                if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition) {
+                if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
                     vertices += charVerts
                     xPosition += xOffset
                 }
