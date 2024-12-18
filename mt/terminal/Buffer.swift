@@ -2,14 +2,14 @@ import Cocoa
 
 struct CharacterCell {
     var character: Character
-    var foregroundColor: NSColor
-    var backgroundColor: NSColor
+    var foregroundColor: RGBA
+    var backgroundColor: RGBA
     var isBold: Bool
     var isUnderlined: Bool
     
     init(character: Character = " ",
-         foregroundColor: NSColor = .white,
-         backgroundColor: NSColor = .clear,
+         foregroundColor: RGBA = .white,
+         backgroundColor: RGBA = .clear,
          isBold: Bool = false,
          isUnderlined: Bool = false) {
         self.character = character
@@ -175,7 +175,7 @@ class Buffer {
         currentAttributes = CharacterCell()
     }
     
-    private func ansiColor(_ code: Int) -> NSColor {
+    private func ansiColor(_ code: Int) -> RGBA {
         switch code {
         case 0: return .black
         case 1: return .red

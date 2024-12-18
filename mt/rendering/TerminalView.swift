@@ -195,8 +195,8 @@ class Renderer: NSObject, MTKViewDelegate {
                       screenSize: CGSize,
                       cursorX: Float,
                       cursorY: Float,
-                      fgColor: NSColor,
-                      bgColor: NSColor
+                      fgColor: RGBA,
+                      bgColor: RGBA
     ) -> ([Float], Float)? {
         guard let glyph = font.glyph(for: char) else { return nil }
         
@@ -229,36 +229,22 @@ class Renderer: NSObject, MTKViewDelegate {
         let u2 = (glyphX + glyphWidth) / Float(textureSize.width)
         let v2 = 1.0 - ((glyphY + glyphHeight) / Float(textureSize.height))
         
-        // Convert NSColor to an RGB color space first
-        let fgRGB = fgColor.usingColorSpace(.extendedSRGB) ?? fgColor
-        let bgRGB = bgColor.usingColorSpace(.extendedSRGB) ?? bgColor
-        
-        let fgR = Float(fgRGB.redComponent)
-        let fgG = Float(fgRGB.greenComponent)
-        let fgB = Float(fgRGB.blueComponent)
-        let fgA = Float(fgRGB.alphaComponent)
-        
-        let bgR = Float(bgRGB.redComponent)
-        let bgG = Float(bgRGB.greenComponent)
-        let bgB = Float(bgRGB.blueComponent)
-        let bgA = Float(bgRGB.alphaComponent)
-        
         // Build 6 vertices (2 triangles) with 12 floats each:
         // (pos.x, pos.y, tex.u, tex.v, fgRGBA(4 floats), bgRGBA(4 floats))
         
         // Triangle 1
         let quadData: [Float] = [
             // Vertex 1
-            clipX1, clipY1, u1, v1, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            clipX1, clipY1, u1, v1, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
             // Vertex 2
-            clipX2, clipY1, u2, v1, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            clipX2, clipY1, u2, v1, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
             // Vertex 3
-            clipX1, clipY2, u1, v2, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
+            clipX1, clipY2, u1, v2, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
             
             // Triangle 2
-            clipX1, clipY2, u1, v2, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
-            clipX2, clipY1, u2, v1, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA,
-            clipX2, clipY2, u2, v2, fgR, fgG, fgB, fgA, bgR, bgG, bgB, bgA
+            clipX1, clipY2, u1, v2, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
+            clipX2, clipY1, u2, v1, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
+            clipX2, clipY2, u2, v2, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
         ]
         
         return (quadData, glyphWidth)
