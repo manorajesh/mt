@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 class AnsiParser {
     enum ParserState {
@@ -139,7 +140,7 @@ class AnsiParser {
             buffer.applyGraphicRendition(params)
         default:
             // Handle other CSI sequences if necessary
-            print(command)
+            Logger().info("Unhandled CSI Sequence: \(command)")
             break
         }
     }

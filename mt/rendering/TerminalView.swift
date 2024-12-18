@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MetalKit
+import OSLog
 
 class TerminalMTKView: MTKView {
     var pty: Pty?
@@ -20,16 +21,16 @@ class TerminalMTKView: MTKView {
         
         guard let characters = event.characters else { return }
         switch event.keyCode {
-            case 0x7E:
-                pty?.sendSpecialKey(.arrowUp)
-            case 0x7D:
-                pty?.sendSpecialKey(.arrowDown)
-            case 0x7B:
-                pty?.sendSpecialKey(.arrowLeft)
-            case 0x7C:
-                pty?.sendSpecialKey(.arrowRight)
-            default:
-                pty?.sendInput(characters)
+        case 0x7E:
+            pty?.sendSpecialKey(.arrowUp)
+        case 0x7D:
+            pty?.sendSpecialKey(.arrowDown)
+        case 0x7B:
+            pty?.sendSpecialKey(.arrowLeft)
+        case 0x7C:
+            pty?.sendSpecialKey(.arrowRight)
+        default:
+            pty?.sendInput(characters)
         }
         // Send the typed characters to the PTY
     }
@@ -121,7 +122,7 @@ class Renderer: NSObject, MTKViewDelegate {
     init(device: MTLDevice, buffer: Buffer, pty: Pty) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
-        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: NSFont(name: "Monaco", size: 30)!)!
+        self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: NSFont(name: "Monaco", size: 25)!)!
         self.buffer = buffer
         self.pty = pty
         
@@ -167,7 +168,7 @@ class Renderer: NSObject, MTKViewDelegate {
         vertexDescriptor.layouts[0].stepFunction = .perVertex
         
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
-
+        
         
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
         
@@ -268,7 +269,7 @@ class Renderer: NSObject, MTKViewDelegate {
         viewSize = size
         let cols = Int(Int(size.width)/(fontAtlas.glyph(for: " ")?.size.width)!)
         let rows = Int(size.height/fontAtlas.lineHeight!)
-        print("\(rows)x\(cols)")
+        Logger().info("Resizing to \(rows)x\(cols)")
         buffer?.resize(rows: rows, cols: cols)
         pty?.resizePty(rows: UInt16(rows), cols: UInt16(cols))
         updateVerticesForBuffer()
@@ -278,7 +279,7 @@ class Renderer: NSObject, MTKViewDelegate {
         guard let drawable = view.currentDrawable,
               let renderPassDesc = view.currentRenderPassDescriptor,
               let pipelineState = pipelineState,
-              let vertexBuffer = vertexBuffer,  // ensure not nil
+              let vertexBuffer = vertexBuffer,
               vertexBuffer.length > 0 else {
             return
         }

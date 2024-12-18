@@ -7,6 +7,7 @@
 
 import Foundation
 import MetalKit
+import OSLog
 
 class FontAtlas {
     var charSet = #" !#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"#
@@ -45,13 +46,14 @@ class FontAtlas {
         // Render each character into the context, tracking positions
         var currentX = 0
         var currentY = 0
+        var currentCharIdx = 0
         let yPadding = 5
         for character in charSet {
             let charString = String(character)
             let charSize = charString.size(withAttributes: attributes)
             
             if currentY + Int(charSize.height) + yPadding > bitmapHeight {
-                print("Altas too small; skipping remaining chars")
+                Logger().notice("Altas too small; skipping \(self.charSet.count-currentCharIdx) remaining chars")
                 break
             }
             
@@ -70,6 +72,7 @@ class FontAtlas {
             glyphs[character] = glyph
             
             currentX += Int(charSize.width)
+            currentCharIdx += 1
         }
         
         guard let cgImage = context.makeImage() else { return nil }
@@ -151,8 +154,8 @@ func saveFontAtlasToFile(fontAtlas: FontAtlas, fileURL: URL) {
     
     do {
         try pngData.write(to: fileURL)
-        print("FontAtlas saved to \(fileURL.path)")
+        Logger().info("FontAtlas saved to \(fileURL.path)")
     } catch {
-        print("Failed to save FontAtlas: \(error)")
+        Logger().notice("Failed to save FontAtlas: \(error)")
     }
 }

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 class Pty {
     private let fd: Int32
@@ -27,23 +28,28 @@ class Pty {
         let pid = forkpty(&masterFd, nil, &termiosOptions, &winSize)
         
         if pid == -1 {
-            print("Error creating PTY")
+            Logger().error("Error creating PTY")
             self.fd = -1
             return
         }
         
+        Logger().info("Creating PTY")
+        setenv("TERM", "xterm-256color", 1)
         self.fd = masterFd
         
         if pid == 0 {
             // Child process: Execute shell
             let shell = "/bin/zsh"
-            let args: [UnsafeMutablePointer<CChar>?] = [strdup(shell), nil]
+            let args: [UnsafeMutablePointer<CChar>?] = [strdup(shell), strdup("-l"), nil]
             execv(shell, args)
+            Logger().error("execv(shell, args) failed")
             exit(1)  // If execv fails
         } else {
             // Parent process: configure FD and start reading
             let flags = fcntl(fd, F_GETFL)
-            fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+            if fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0 {
+                Logger().error("fcntl failed; unable to read file descriptor")
+            }
             startReadingOutput()
         }
     }
@@ -59,10 +65,13 @@ class Pty {
     
     func resizePty(rows: UInt16, cols: UInt16) {
         var winSize = winsize(ws_row: rows, ws_col: cols, ws_xpixel: 0, ws_ypixel: 0)
-        ioctl(self.fd, TIOCSWINSZ, &winSize)
+        if ioctl(self.fd, TIOCSWINSZ, &winSize) != 0 {
+            Logger().error("Error resizing PTY")
+        }
     }
     
     private func startReadingOutput() {
+        Logger().info("Reading Output from PTY")
         let bufferSize = 1024
         var bufferArray = [UInt8](repeating: 0, count: bufferSize)
         
