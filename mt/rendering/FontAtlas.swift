@@ -47,7 +47,7 @@ class FontAtlas {
         var currentX = 0
         var currentY = 0
         var currentCharIdx = 0
-        let yPadding = 5
+        let yPadding = 0
         for character in charSet {
             let charString = String(character)
             let charSize = charString.size(withAttributes: attributes)

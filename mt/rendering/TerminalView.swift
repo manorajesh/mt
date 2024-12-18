@@ -215,13 +215,11 @@ class Renderer: NSObject, MTKViewDelegate {
         // Convert to clip space
         let screenWidth  = Float(screenSize.width)
         let screenHeight = Float(screenSize.height)
-        let pxToClipX = { (px: Float) in (px / screenWidth) * 2.0 - 1.0 }
-        let pxToClipY = { (py: Float) in (py / screenHeight) * 2.0 - 1.0 }
         
-        let clipX1 = pxToClipX(x1)
-        let clipX2 = pxToClipX(x2)
-        let clipY1 = pxToClipY(y1)
-        let clipY2 = pxToClipY(y2)
+        let clipX1 = (x1 / screenWidth) * 2.0 - 1.0
+        let clipX2 = (x2 / screenWidth) * 2.0 - 1.0
+        let clipY1 = (y1 / screenHeight) * 2.0 - 1.0
+        let clipY2 = (y2 / screenHeight) * 2.0 - 1.0
         
         // Texture coordinates (flipping v if needed)
         let u1 = glyphX / Float(textureSize.width)
@@ -255,6 +253,7 @@ class Renderer: NSObject, MTKViewDelegate {
         viewSize = size
         let cols = Int(Int(size.width)/(fontAtlas.glyph(for: " ")?.size.width)!)
         let rows = Int(size.height/fontAtlas.lineHeight!)
+        
         Logger().info("Resizing to \(rows)x\(cols)")
         buffer?.resize(rows: rows, cols: cols)
         pty?.resizePty(rows: UInt16(rows), cols: UInt16(cols))
@@ -289,7 +288,7 @@ class Renderer: NSObject, MTKViewDelegate {
     
     // Method to update vertices for dirty rows
     func updateVerticesForBuffer() {
-        guard let buffer = buffer?.buffer, let viewSize = viewSize else { return }
+        guard let buffer = buffer, let viewSize = viewSize else { return }
         
         let textureSize = CGSize(width: fontAtlas.atlasTexture!.width,
                                  height: fontAtlas.atlasTexture!.height)
@@ -298,8 +297,10 @@ class Renderer: NSObject, MTKViewDelegate {
         
         var xPosition = Float(0.0)
         var yPosition = totalHeight
+        
         var vertices: [Float] = []
-        for line in buffer {
+        vertices.reserveCapacity(buffer.rows * buffer.cols * 12)
+        for line in buffer.buffer {
             for char in line {
                 if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
                     vertices += charVerts
