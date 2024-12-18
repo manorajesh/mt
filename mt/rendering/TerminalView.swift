@@ -77,14 +77,8 @@ struct TerminalView: NSViewRepresentable {
     
     /// Called whenever PTY has new output
     func refresh() {
-        // Update the renderer with the new buffer state
-        coordinator.renderer?.updateVerticesForBuffer()
-        
-        // Force the MTKView to redraw immediately
-        // If the MTKView has enableSetNeedsDisplay = true, you can do:
-        // (coordinator.renderer?.view as? MTKView)?.setNeedsDisplay((coordinator.renderer?.view?.bounds)!)
-        // Or if you have a reference to the MTKView:
-        // nsView.draw()
+        // Update the renderer with the new buffer state using debouncing
+        coordinator.renderer?.debouncedUpdateVertices()
     }
     
     func makeCoordinator() -> Coordinator {
@@ -118,6 +112,9 @@ class Renderer: NSObject, MTKViewDelegate {
     
     var buffer: Buffer?
     var pty: Pty?
+    
+    private var updateTimer: Timer?
+    private let debounceInterval: TimeInterval = 1.0/60.0 // 60fps
     
     init(device: MTLDevice, buffer: Buffer, pty: Pty) {
         self.device = device
@@ -199,6 +196,10 @@ class Renderer: NSObject, MTKViewDelegate {
                       bgColor: RGBA
     ) -> ([Float], Float)? {
         guard let glyph = font.glyph(for: char) else { return nil }
+        
+        if char == " " {
+            return ([], Float(glyph.size.width))
+        }
         
         let glyphWidth  = Float(glyph.size.width)
         let glyphHeight = Float(glyph.size.height)
@@ -319,5 +320,15 @@ class Renderer: NSObject, MTKViewDelegate {
             length: vertices.count * MemoryLayout<Float>.size,
             options: []
         )
+    }
+    
+    func debouncedUpdateVertices() {
+        print("debouncing")
+        updateTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                print("rendering")
+                self?.updateVerticesForBuffer()
+            }
+        }
     }
 }

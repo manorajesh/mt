@@ -92,8 +92,9 @@ class Pty {
                     DispatchQueue.main.async {
                         localView.refresh()
                     }
+                }  else {
+                    usleep(1000) // Slow down if there's no output
                 }
-                usleep(100)   // 10ms delay to avoid busy-waiting
             }
         }
     }

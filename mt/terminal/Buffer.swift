@@ -1,3 +1,10 @@
+//
+//  Buffer.swift
+//  mt
+//
+//  Created by Mano Rajesh on 10/15/24.
+//
+
 import Cocoa
 
 struct CharacterCell {
