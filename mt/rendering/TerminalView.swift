@@ -290,6 +290,7 @@ class Renderer: NSObject, MTKViewDelegate {
     // Method to update vertices for dirty rows
     func updateVerticesForBuffer() {
         guard let buffer = buffer, let viewSize = viewSize else { return }
+        let snapshotBuffer = buffer.buffer
         
         let textureSize = CGSize(width: fontAtlas.atlasTexture!.width,
                                  height: fontAtlas.atlasTexture!.height)
@@ -300,9 +301,13 @@ class Renderer: NSObject, MTKViewDelegate {
         var yPosition = totalHeight
         
         var vertices: [Float] = []
-        vertices.reserveCapacity(buffer.rows * buffer.cols * 12)
-        for line in buffer.buffer {
-            for char in line {
+        let estimatedVertexCount = buffer.rows * buffer.cols * 6
+        vertices.reserveCapacity(estimatedVertexCount * 12)
+        for rowIndex in 0..<snapshotBuffer.count {
+            guard rowIndex < snapshotBuffer.count else { continue }
+            let line = snapshotBuffer[rowIndex]
+            for colIndex in 0..<snapshotBuffer[rowIndex].count {
+                let char = line[colIndex]
                 if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
                     vertices += charVerts
                     xPosition += xOffset
@@ -323,10 +328,11 @@ class Renderer: NSObject, MTKViewDelegate {
     }
     
     func debouncedUpdateVertices() {
-        print("debouncing")
+//        print("debouncing")
+        
         updateTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
             DispatchQueue.main.async {
-                print("rendering")
+//                print("rendering")
                 self?.updateVerticesForBuffer()
             }
         }

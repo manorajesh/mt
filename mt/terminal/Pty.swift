@@ -61,6 +61,8 @@ class Pty {
         termiosOptions.c_lflag |= UInt(IEXTEN)
         termiosOptions.c_iflag |= UInt(ICRNL)
         termiosOptions.c_oflag |= UInt(OPOST)
+        
+        tcsetattr(fd, TCSANOW, &termiosOptions)
     }
     
     func resizePty(rows: UInt16, cols: UInt16) {
@@ -72,11 +74,10 @@ class Pty {
     
     private func startReadingOutput() {
         Logger().info("Reading Output from PTY")
-        let bufferSize = 1024
-        var bufferArray = [UInt8](repeating: 0, count: bufferSize)
         
-        readQueue.async { [weak self] in
-            guard let self = self else { return }
+        readQueue.async { [unowned self] in            
+            let bufferSize = 1024
+            var bufferArray = [UInt8](repeating: 0, count: bufferSize)
             
             while true {
                 let bytesRead = read(self.fd, &bufferArray, bufferSize - 1)
@@ -93,7 +94,7 @@ class Pty {
                         localView.refresh()
                     }
                 }  else {
-                    usleep(1000) // Slow down if there's no output
+                    usleep(100) // Slow down if there's no output
                 }
             }
         }
