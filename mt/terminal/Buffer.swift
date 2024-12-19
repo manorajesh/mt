@@ -7,14 +7,14 @@
 
 struct CharacterCell {
     var asciiCode: UInt8
-    var foregroundColor: RGBA
-    var backgroundColor: RGBA
+    var foregroundColor: SIMD4<Float> // RGBA
+    var backgroundColor: SIMD4<Float> // RGBA
     var isBold: Bool
     var isUnderlined: Bool
     
     init(asciiCode: UInt8 = 32, // ASCII for space
-         foregroundColor: RGBA = .white,
-         backgroundColor: RGBA = .clear,
+         foregroundColor: SIMD4<Float> = Colors.white,
+         backgroundColor: SIMD4<Float> = Colors.clear,
          isBold: Bool = false,
          isUnderlined: Bool = false) {
         self.asciiCode = asciiCode
@@ -210,17 +210,17 @@ class Buffer {
         currentAttributes = CharacterCell()
     }
     
-    private func ansiColor(_ code: Int) -> RGBA {
+    private func ansiColor(_ code: Int) -> SIMD4<Float> {
         switch code {
-        case 0: return .black
-        case 1: return .red
-        case 2: return .green
-        case 3: return .yellow
-        case 4: return .blue
-        case 5: return .magenta
-        case 6: return .cyan
-        case 7: return .white
-        default: return .white
+        case 0: return Colors.black
+        case 1: return Colors.red
+        case 2: return Colors.green
+        case 3: return Colors.yellow
+        case 4: return Colors.blue
+        case 5: return Colors.magenta
+        case 6: return Colors.cyan
+        case 7: return Colors.white
+        default: return Colors.white
         }
     }
     

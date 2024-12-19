@@ -56,11 +56,12 @@ struct TerminalView: NSViewRepresentable {
         // Configure view for smooth rendering
         mtkView.preferredFramesPerSecond = 60
         mtkView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1.0)
+        mtkView.enableSetNeedsDisplay = true
         
         // Enable triple buffering
         //        mtkView.maximumDrawableCount = 3
         
-        let renderer = Renderer(device: device, buffer: buffer, pty: pty)
+        let renderer = Renderer(device: device, buffer: buffer, pty: pty, mtkView: mtkView)
         mtkView.delegate = renderer
         coordinator.renderer = renderer
         
@@ -107,21 +108,23 @@ class Renderer: NSObject, MTKViewDelegate {
     var vertexBuffer: MTLBuffer?
     var pipelineState: MTLRenderPipelineState?
     var samplerState: MTLSamplerState?
-    var cachedVertices: [Float] = []
     var viewSize: CGSize?
     
+    var mtkView: MTKView?
     var buffer: Buffer?
     var pty: Pty?
     
     private var updateTimer: Timer?
     private let debounceInterval: TimeInterval = 1.0/60.0 // 60fps
+    private var needsUpdate: Bool = false
     
-    init(device: MTLDevice, buffer: Buffer, pty: Pty) {
+    init(device: MTLDevice, buffer: Buffer, pty: Pty, mtkView: MTKView) {
         self.device = device
         self.commandQueue = device.makeCommandQueue()!
         self.fontAtlas = FontAtlas(device: self.device, size: CGSize(width: 4096, height: 4096), font: NSFont(name: "Monaco", size: 25)!)!
         self.buffer = buffer
         self.pty = pty
+        self.mtkView = mtkView
         
         super.init()
         
@@ -192,8 +195,8 @@ class Renderer: NSObject, MTKViewDelegate {
                       screenSize: CGSize,
                       cursorX: Float,
                       cursorY: Float,
-                      fgColor: RGBA,
-                      bgColor: RGBA
+                      fgColor: SIMD4<Float>,
+                      bgColor: SIMD4<Float>
     ) -> ([Float], Float)? {
         // Convert ASCII code to Character for font atlas lookup
         guard let glyph = font.glyph(for: asciiCode) else { return nil }
@@ -235,16 +238,16 @@ class Renderer: NSObject, MTKViewDelegate {
         // Triangle 1
         let quadData: [Float] = [
             // Vertex 1
-            clipX1, clipY1, u1, v1, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
+            clipX1, clipY1, u1, v1, fgColor.x, fgColor.y, fgColor.z, fgColor.w, bgColor.x, bgColor.y, bgColor.z, bgColor.w,
             // Vertex 2
-            clipX2, clipY1, u2, v1, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
+            clipX2, clipY1, u2, v1, fgColor.x, fgColor.y, fgColor.z, fgColor.w, bgColor.x, bgColor.y, bgColor.z, bgColor.w,
             // Vertex 3
-            clipX1, clipY2, u1, v2, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
+            clipX1, clipY2, u1, v2, fgColor.x, fgColor.y, fgColor.z, fgColor.w, bgColor.x, bgColor.y, bgColor.z, bgColor.w,
             
             // Triangle 2
-            clipX1, clipY2, u1, v2, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
-            clipX2, clipY1, u2, v1, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
-            clipX2, clipY2, u2, v2, fgColor.rgba.x, fgColor.rgba.y, fgColor.rgba.z, fgColor.rgba.w, bgColor.rgba.x, bgColor.rgba.y, bgColor.rgba.z, bgColor.rgba.w,
+            clipX1, clipY2, u1, v2, fgColor.x, fgColor.y, fgColor.z, fgColor.w, bgColor.x, bgColor.y, bgColor.z, bgColor.w,
+            clipX2, clipY1, u2, v1, fgColor.x, fgColor.y, fgColor.z, fgColor.w, bgColor.x, bgColor.y, bgColor.z, bgColor.w,
+            clipX2, clipY2, u2, v2, fgColor.x, fgColor.y, fgColor.z, fgColor.w, bgColor.x, bgColor.y, bgColor.z, bgColor.w,
         ]
         
         return (quadData, glyphWidth)
@@ -256,6 +259,10 @@ class Renderer: NSObject, MTKViewDelegate {
         let cols = Int(Int(size.width)/(fontAtlas.glyph(for: 32)?.size.width)!)
         let rows = Int(size.height/fontAtlas.lineHeight!)
         
+        let totalVertices = rows * cols * 12
+        Logger().info("Resizing vertex buffer \(totalVertices) vertices")
+        vertexBuffer = device.makeBuffer(bytes: [], length: totalVertices * MemoryLayout<Float>.size, options: [.storageModeShared])
+        
         Logger().info("Resizing to \(rows)x\(cols)")
         buffer?.resize(rows: rows, cols: cols)
         pty?.resizePty(rows: UInt16(rows), cols: UInt16(cols))
@@ -263,6 +270,11 @@ class Renderer: NSObject, MTKViewDelegate {
     }
     
     func draw(in view: MTKView) {
+        if needsUpdate {
+            updateVerticesForBuffer()
+            needsUpdate = false
+        }
+        
         guard let drawable = view.currentDrawable,
               let renderPassDesc = view.currentRenderPassDescriptor,
               let pipelineState = pipelineState,
@@ -279,8 +291,8 @@ class Renderer: NSObject, MTKViewDelegate {
         encoder.setFragmentTexture(fontAtlas.atlasTexture, index: 0)
         encoder.setFragmentSamplerState(samplerState, index: 0)
         
-        // Each vertex = 4 floats, so:
-        let vertexCount = vertexBuffer.length / (MemoryLayout<Float>.size * 4)
+        // Each vertex = 12 floats
+        let vertexCount = vertexBuffer.length / 12
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertexCount)
         
         encoder.endEncoding()
@@ -346,22 +358,27 @@ class Renderer: NSObject, MTKViewDelegate {
         
         if vertices.isEmpty { return }
         
-        // Rebuild the vertex buffer
-        vertexBuffer = device.makeBuffer(
-            bytes: vertices,
-            length: vertices.count * MemoryLayout<Float>.size,
-            options: []
-        )
-    }
-    
-    func debouncedUpdateVertices() {
-//        print("debouncing")
+        if vertices.count > vertexBuffer?.length ?? 0 / MemoryLayout<Float>.size {
+            Logger().info("Vertex buffer is too small: newVertices \(vertices.count) and oldVertices \(self.vertexBuffer?.length ?? 0)")
+            vertexBuffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<Float>.size, options: [.storageModeShared])
+            return
+        }
         
-        updateTimer = Timer.scheduledTimer(withTimeInterval: debounceInterval, repeats: false) { [weak self] _ in
-            DispatchQueue.main.async {
-//                print("rendering")
-                self?.updateVerticesForBuffer()
-            }
+        // Rebuild the vertex buffer
+        let bufferPointer = vertexBuffer?.contents()
+        vertices.withUnsafeBytes { srcBuffer in
+            bufferPointer?.copyMemory(from: srcBuffer.baseAddress!, byteCount: vertices.count * MemoryLayout<Float>.size)
         }
     }
+    
+    @MainActor func debouncedUpdateVertices() {
+        markUpdateNeeded()
+    }
+    
+    // Helper method
+    @MainActor func markUpdateNeeded() {
+        needsUpdate = true
+        mtkView?.setNeedsDisplay(.infinite)
+    }
+
 }

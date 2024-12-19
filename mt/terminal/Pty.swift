@@ -76,7 +76,7 @@ class Pty {
         Logger().info("Reading Output from PTY")
         
         readQueue.async { [unowned self] in            
-            let bufferSize = 1024
+            let bufferSize = 4096
             var bufferArray = [UInt8](repeating: 0, count: bufferSize)
             
             while true {
