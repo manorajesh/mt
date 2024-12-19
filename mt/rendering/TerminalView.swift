@@ -110,9 +110,9 @@ class Renderer: NSObject, MTKViewDelegate {
     var samplerState: MTLSamplerState?
     var viewSize: CGSize?
     
-    var mtkView: MTKView?
-    var buffer: Buffer?
-    var pty: Pty?
+    let mtkView: MTKView?
+    let buffer: Buffer?
+    let pty: Pty?
     
     private var updateTimer: Timer?
     private let debounceInterval: TimeInterval = 1.0/60.0 // 60fps
@@ -304,6 +304,8 @@ class Renderer: NSObject, MTKViewDelegate {
     func updateVerticesForBuffer() {
         guard let buffer = buffer, let viewSize = viewSize else { return }
         let snapshotBuffer = buffer
+        let rows = buffer.rows
+        let cols = snapshotBuffer.cols
         
         let textureSize = CGSize(width: fontAtlas.atlasTexture!.width,
                                  height: fontAtlas.atlasTexture!.height)
@@ -313,7 +315,7 @@ class Renderer: NSObject, MTKViewDelegate {
         var xPosition = Float(0.0)
         var yPosition = totalHeight
         
-        let estimatedVertexCount = buffer.rows * buffer.cols * 6 * 12
+        let estimatedVertexCount = rows * cols * 6 * 12
         var vertices = [Float](repeating: 0, count: estimatedVertexCount)
         
         vertices.withUnsafeMutableBufferPointer { bufferPointer in
@@ -323,11 +325,11 @@ class Renderer: NSObject, MTKViewDelegate {
             guard let bufferBase = bufferPointer.baseAddress else { return }
             
             var rowIndex = 0
-            while rowIndex < buffer.rows {
+            while rowIndex < rows {
                 var colIndex = 0
-                while colIndex < buffer.cols {
-                    let idx = snapshotBuffer.index(row: rowIndex, col: colIndex)
-                    let char = snapshotBuffer.buffer[idx]
+                while colIndex < cols {
+//                    let idx = snapshotBuffer.index(row: rowIndex, col: colIndex)
+                    let char = snapshotBuffer[rowIndex, colIndex]
                     if let (charVerts, xOffset) = generateQuad(
                         for: char.asciiCode,
                         font: fontAtlas,

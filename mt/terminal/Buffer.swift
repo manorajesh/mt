@@ -13,8 +13,8 @@ struct CharacterCell {
     var isUnderlined: Bool
     
     init(asciiCode: UInt8 = 32, // ASCII for space
-         foregroundColor: SIMD4<Float> = Colors.white,
-         backgroundColor: SIMD4<Float> = Colors.clear,
+         foregroundColor: SIMD4<Float> = SIMD4<Float>(1, 1, 1, 1),
+         backgroundColor: SIMD4<Float> = SIMD4<Float>(0, 0, 0, 0),
          isBold: Bool = false,
          isUnderlined: Bool = false) {
         self.asciiCode = asciiCode
@@ -27,7 +27,7 @@ struct CharacterCell {
 
 class Buffer {
     // 1D buffer with circular indexing
-    var buffer: [CharacterCell]
+    private var buffer: [CharacterCell]
     private var bufferStart: Int = 0  // Start of circular buffer
     
     // Terminal dimensions

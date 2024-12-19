@@ -24,7 +24,7 @@ class AnsiParser {
     private var finalByte: UInt8 = 0
     private var oscBytes = [UInt8]()
     
-    private var buffer: Buffer
+    private let buffer: Buffer
     
     init(buffer: Buffer) {
         self.buffer = buffer

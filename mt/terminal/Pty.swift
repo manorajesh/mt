@@ -13,9 +13,9 @@ class Pty {
     private var termiosOptions = termios()
     private let readQueue = DispatchQueue(label: "com.example.Pty.readQueue")
     
-    private var buffer: Buffer
-    private var view: TerminalView
-    private var parser: AnsiParser
+    private let buffer: Buffer
+    private let view: TerminalView
+    private let parser: AnsiParser
     
     init(buffer: Buffer, view: TerminalView, rows: UInt16, cols: UInt16) {
         self.buffer = buffer
