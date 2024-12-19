@@ -300,21 +300,96 @@ class Renderer: NSObject, MTKViewDelegate {
         var xPosition = Float(0.0)
         var yPosition = totalHeight
         
-        var vertices: [Float] = []
-        let estimatedVertexCount = buffer.rows * buffer.cols * 6
-        vertices.reserveCapacity(estimatedVertexCount * 12)
-        for rowIndex in 0..<snapshotBuffer.count {
-            guard rowIndex < snapshotBuffer.count else { continue }
-            let line = snapshotBuffer[rowIndex]
-            for colIndex in 0..<snapshotBuffer[rowIndex].count {
-                let char = line[colIndex]
-                if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
-                    vertices += charVerts
-                    xPosition += xOffset
+        let estimatedVertexCount = buffer.rows * buffer.cols * 6 * 12
+        var vertices = [Float](repeating: 0, count: estimatedVertexCount)
+//        var vertices: [Float] = []
+//        vertices.reserveCapacity(estimatedVertexCount)
+//        for rowIndex in 0..<snapshotBuffer.count {
+//            guard rowIndex < snapshotBuffer.count else { continue }
+//            let line = snapshotBuffer[rowIndex]
+//            for colIndex in 0..<snapshotBuffer[rowIndex].count {
+//                let char = line[colIndex]
+//                if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
+//                    vertices += charVerts
+//                    xPosition += xOffset
+//                }
+//            }
+//            xPosition = 0.0
+//            yPosition -= lineHeight
+//        }
+        
+//        snapshotBuffer.withUnsafeBufferPointer { rowPointer in
+//            for row in rowPointer {
+//                row.withUnsafeBufferPointer { colPointer in
+//                    for char in colPointer {
+//                        if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
+//                            vertices += charVerts
+//                            xPosition += xOffset
+//                        }
+//                    }
+//                }
+//                xPosition = 0.0
+//                yPosition -= lineHeight
+//            }
+//        }
+        
+//        vertices.withUnsafeMutableBufferPointer { bufferPointer in
+//            var currentIndex = 0
+//            snapshotBuffer.withUnsafeBufferPointer { rowPointer in
+//                for row in rowPointer {
+//                    row.withUnsafeBufferPointer { colPointer in
+//                        for char in colPointer {
+//                            if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
+//                                charVerts.withUnsafeBufferPointer { charVertsPointer in
+//                                    for vert in charVertsPointer {
+//                                        bufferPointer[currentIndex] = vert
+//                                        currentIndex += 1
+//                                    }
+//                                }
+//                                xPosition += xOffset
+//                            }
+//                        }
+//                    }
+//                    xPosition = 0.0
+//                    yPosition -= lineHeight
+//                }
+//            }
+//        }
+        
+        vertices.withUnsafeMutableBufferPointer { bufferPointer in
+            var currentIndex = 0
+            
+            // Precompute the base address of the mutable buffer
+            guard let bufferBase = bufferPointer.baseAddress else { return }
+            
+            // Iterate rows directly
+            for row in snapshotBuffer {
+                // Iterate columns (characters) in the row
+                for char in row {
+                    if let (charVerts, xOffset) = generateQuad(
+                        for: char.character,
+                        font: fontAtlas,
+                        textureSize: textureSize,
+                        screenSize: viewSize,
+                        cursorX: xPosition,
+                        cursorY: yPosition,
+                        fgColor: char.foregroundColor,
+                        bgColor: char.backgroundColor
+                    ) {
+                        // Directly copy the vertex data in batches
+                        charVerts.withUnsafeBufferPointer { charVertsPointer in
+                            guard let charVertsBase = charVertsPointer.baseAddress else { return }
+                            let vertexCount = charVertsPointer.count
+                            // Use `memcpy` for bulk copy
+                            memcpy(bufferBase.advanced(by: currentIndex), charVertsBase, vertexCount * MemoryLayout<Float>.size)
+                            currentIndex += vertexCount
+                        }
+                        xPosition += xOffset
+                    }
                 }
+                xPosition = 0.0
+                yPosition -= lineHeight
             }
-            xPosition = 0.0
-            yPosition -= lineHeight
         }
         
         if vertices.isEmpty { return }

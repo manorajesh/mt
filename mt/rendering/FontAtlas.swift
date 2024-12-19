@@ -13,7 +13,7 @@ class FontAtlas {
     var charSet = #" !#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"#
     var atlasTexture: MTLTexture?
     var lineHeight: CGFloat?
-    private var glyphs: [Character: Glyph] = [:]
+    var glyphsArray: [Glyph?] = Array(repeating: nil, count: 128)
     
     init?(device: MTLDevice, size: CGSize, font: NSFont) {
         let attributes: [NSAttributedString.Key: Any] = [
@@ -65,11 +65,11 @@ class FontAtlas {
             let drawRect = CGRect(x: CGFloat(currentX), y: CGFloat(currentY), width: charSize.width, height: charSize.height)
             charString.draw(in: drawRect, withAttributes: attributes)
             
-            let glyph = Glyph(width: Int(charSize.width),
-                              height: Int(charSize.height),
-                              x: currentX,
-                              y: currentY)
-            glyphs[character] = glyph
+            let asciiValue = Int(character.asciiValue!)
+            glyphsArray[asciiValue] = Glyph(width: Int(charSize.width),
+                                            height: Int(charSize.height),
+                                            x: currentX,
+                                            y: currentY)
             
             currentX += Int(charSize.width)
             currentCharIdx += 1
@@ -99,7 +99,8 @@ class FontAtlas {
     
     
     func glyph(for character: Character) -> Glyph? {
-        return glyphs[character]  // Return the glyph for the specified character
+        guard let asciiValue = character.asciiValue else { return nil }
+        return glyphsArray[Int(asciiValue)]
     }
     
     func saveToFile() {

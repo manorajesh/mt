@@ -83,8 +83,13 @@ class Pty {
                 let bytesRead = read(self.fd, &bufferArray, bufferSize - 1)
                 if bytesRead > 0 {
                     // Parse on the same queue to avoid data races
-                    for i in 0..<bytesRead {
+//                    for i in 0..<bytesRead {
+//                        self.parser.parse(byte: bufferArray[i])
+//                    }
+                    var i = 0
+                    while i < bytesRead {
                         self.parser.parse(byte: bufferArray[i])
+                        i += 1
                     }
                     
                     let localView = self.view
