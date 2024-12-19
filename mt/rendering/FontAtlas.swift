@@ -98,9 +98,8 @@ class FontAtlas {
     }
     
     
-    func glyph(for character: Character) -> Glyph? {
-        guard let asciiValue = character.asciiValue else { return nil }
-        return glyphsArray[Int(asciiValue)]
+    func glyph(for asciiCode: UInt8) -> Glyph? {
+        return glyphsArray[Int(asciiCode)]
     }
     
     func saveToFile() {

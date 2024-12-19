@@ -18,11 +18,11 @@ class AnsiParser {
     }
     
     private var state: ParserState = .normal
-    private var paramBuffer = ""
+    private var paramBuffer = [UInt8]()
     private var params: [Int] = []
-    private var intermediateChars = ""
-    private var finalChar: Character?
-    private var oscString = ""
+    private var intermediateBytes = [UInt8]()
+    private var finalByte: UInt8 = 0
+    private var oscBytes = [UInt8]()
     
     private var buffer: Buffer
     
@@ -31,117 +31,120 @@ class AnsiParser {
     }
     
     func parse(byte: UInt8) {
-        let char = Character(UnicodeScalar(byte))
         switch state {
         case .normal:
-            if char == "\u{1B}" {
+            if byte == 0x1B { // ESC
                 state = .escape
-            } else if byte == 0x08 {
+            } else if byte == 0x08 { // BS
                 buffer.handleBackspace()
-            } else if char == "\n" {
+            } else if byte == 0x0A { // LF
                 buffer.addNewLine()
-            } else if char == "\r" {
+            } else if byte == 0x0D { // CR
                 buffer.addCarriageReturn()
-            } else if char == "\t" {
+            } else if byte == 0x09 { // TAB
                 buffer.advanceCursorToNextTabStop()
             } else {
-                buffer.appendChar(char)
+                buffer.appendChar(byte)
             }
+            
         case .escape:
-            if char == "[" {
+            if byte == 0x5B { // [
                 state = .csi
                 params = []
-                paramBuffer = ""
-                intermediateChars = ""
-            } else if char == "]" {
+                paramBuffer.removeAll(keepingCapacity: true)
+                intermediateBytes.removeAll(keepingCapacity: true)
+            } else if byte == 0x5D { // ]
                 state = .osc
-                oscString = ""
-            } else if char == "P" || char == "_" || char == "^" || char == "X" {
+                oscBytes.removeAll(keepingCapacity: true)
+            } else if byte == 0x50 || byte == 0x5F || byte == 0x5E || byte == 0x58 { // P, _, ^, X
                 state = .sosPmApc
-                // Start of Device Control String, Operating System Command, etc.
-            } else if char == "(" || char == ")" {
-                // Character set selection, skip for now
+            } else if byte == 0x28 || byte == 0x29 { // (, )
                 state = .normal
             } else {
-                // Other escape sequences can be handled here
                 state = .normal
             }
+            
         case .csi:
-            if char.isNumber {
-                paramBuffer.append(char)
-            } else if char == ";" {
-                params.append(Int(paramBuffer) ?? 0)
-                paramBuffer = ""
-            } else if (char >= "\u{20}" && char <= "\u{2F}") {
-                intermediateChars.append(char)
-            } else if (char >= "\u{40}" && char <= "\u{7E}") {
-                // Final character of CSI sequence
-                if !paramBuffer.isEmpty {
-                    params.append(Int(paramBuffer) ?? 0)
-                    paramBuffer = ""
+            if byte >= 0x30 && byte <= 0x39 { // 0-9
+                paramBuffer.append(byte)
+            } else if byte == 0x3B { // ;
+                if let param = parseNumber(from: paramBuffer) {
+                    params.append(param)
                 }
-                finalChar = char
-                handleCsiSequence(params: params, command: finalChar!)
+                paramBuffer.removeAll(keepingCapacity: true)
+            } else if byte >= 0x20 && byte <= 0x2F {
+                intermediateBytes.append(byte)
+            } else if byte >= 0x40 && byte <= 0x7E {
+                if !paramBuffer.isEmpty {
+                    if let param = parseNumber(from: paramBuffer) {
+                        params.append(param)
+                    }
+                    paramBuffer.removeAll(keepingCapacity: true)
+                }
+                finalByte = byte
+                handleCsiSequence(params: params, command: finalByte)
                 state = .normal
             }
+            
         case .osc:
-            if char == "\u{07}" || (char == "\u{1B}" && oscString.last == "\\") {
-                // End of OSC sequence (BEL or ST)
-                // Handle OSC sequence if necessary
+            if byte == 0x07 || (byte == 0x1B && !oscBytes.isEmpty && oscBytes.last == 0x5C) {
                 state = .normal
-                oscString = ""
+                oscBytes.removeAll(keepingCapacity: true)
             } else {
-                oscString.append(char)
+                oscBytes.append(byte)
             }
+            
         case .sosPmApc:
-            if char == "\u{07}" || (char == "\u{1B}" && oscString.last == "\\") {
-                // End of string sequence
+            if byte == 0x07 || (byte == 0x1B && !oscBytes.isEmpty && oscBytes.last == 0x5C) {
                 state = .normal
-                // Handle SOS/PM/APC sequence if necessary
-            } else {
-                // Collect characters
             }
         }
     }
     
-    private func handleCsiSequence(params: [Int], command: Character) {
+    private func parseNumber(from bytes: [UInt8]) -> Int? {
+        var result = 0
+        for byte in bytes {
+            result = result * 10 + Int(byte - 0x30)
+        }
+        return result
+    }
+    
+    private func handleCsiSequence(params: [Int], command: UInt8) {
         switch command {
-        case "A":
-            // Cursor Up
+        case 0x41: // A - Cursor Up
             let n = params.first ?? 1
             buffer.moveCursorUp(n)
-        case "B":
-            // Cursor Down
+            
+        case 0x42: // B - Cursor Down
             let n = params.first ?? 1
             buffer.moveCursorDown(n)
-        case "C":
-            // Cursor Forward
+            
+        case 0x43: // C - Cursor Forward
             let n = params.first ?? 1
             buffer.moveCursorForward(n)
-        case "D":
-            // Cursor Backward
+            
+        case 0x44: // D - Cursor Backward
             let n = params.first ?? 1
             buffer.moveCursorBackward(n)
-        case "H", "f":
-            // Cursor Position
+            
+        case 0x48, 0x66: // H, f - Cursor Position
             let row = (params.first.map { $0 - 1 } ?? 0)
             let col = (params.dropFirst().first.map { $0 - 1 } ?? 0)
             buffer.setCursorPosition(x: col, y: row)
-        case "J":
-            // Erase Display
+            
+        case 0x4A: // J - Erase Display
             let n = params.first ?? 0
             buffer.eraseInDisplay(mode: n)
-        case "K":
-            // Erase Line
+            
+        case 0x4B: // K - Erase Line
             let n = params.first ?? 0
             buffer.eraseInLine(mode: n)
-        case "m":
-            // SGR - Select Graphic Rendition
+            
+        case 0x6D: // m - SGR Select Graphic Rendition
             buffer.applyGraphicRendition(params)
+            
         default:
-            // Handle other CSI sequences if necessary
             Logger().info("Unhandled CSI Sequence: \(command)")
-            break
         }
     }
 }

@@ -8,18 +8,18 @@
 import Cocoa
 
 struct CharacterCell {
-    var character: Character
+    var asciiCode: UInt8
     var foregroundColor: RGBA
     var backgroundColor: RGBA
     var isBold: Bool
     var isUnderlined: Bool
     
-    init(character: Character = " ",
+    init(asciiCode: UInt8 = 32, // ASCII for space
          foregroundColor: RGBA = .white,
          backgroundColor: RGBA = .clear,
          isBold: Bool = false,
          isUnderlined: Bool = false) {
-        self.character = character
+        self.asciiCode = asciiCode
         self.foregroundColor = foregroundColor
         self.backgroundColor = backgroundColor
         self.isBold = isBold
@@ -129,7 +129,7 @@ class Buffer {
     
     // MARK: - Character Handling
     
-    func appendChar(_ char: Character) {
+    func appendChar(_ byte: UInt8) {
         // Cache cursor position locally
         var x = cursorX
         var y = cursorY
@@ -140,7 +140,7 @@ class Buffer {
         guard y >= 0 && y < bufferRows, x >= 0 && x < bufferCols else { return }
         
         var cell = currentAttributes
-        cell.character = char
+        cell.asciiCode = byte
         buffer[y][x] = cell
         
         // Update cursor position

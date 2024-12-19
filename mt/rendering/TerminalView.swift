@@ -186,7 +186,7 @@ class Renderer: NSObject, MTKViewDelegate {
         samplerState = device.makeSamplerState(descriptor: samplerDescriptor)
     }
     
-    func generateQuad(for char: Character,
+    func generateQuad(for asciiCode: UInt8,
                       font: FontAtlas,
                       textureSize: CGSize,
                       screenSize: CGSize,
@@ -195,9 +195,10 @@ class Renderer: NSObject, MTKViewDelegate {
                       fgColor: RGBA,
                       bgColor: RGBA
     ) -> ([Float], Float)? {
-        guard let glyph = font.glyph(for: char) else { return nil }
+        // Convert ASCII code to Character for font atlas lookup
+        guard let glyph = font.glyph(for: asciiCode) else { return nil }
         
-        if char == " " {
+        if asciiCode == 32 { // ASCII for space
             return ([], Float(glyph.size.width))
         }
         
@@ -252,7 +253,7 @@ class Renderer: NSObject, MTKViewDelegate {
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         viewSize = size
-        let cols = Int(Int(size.width)/(fontAtlas.glyph(for: " ")?.size.width)!)
+        let cols = Int(Int(size.width)/(fontAtlas.glyph(for: 32)?.size.width)!)
         let rows = Int(size.height/fontAtlas.lineHeight!)
         
         Logger().info("Resizing to \(rows)x\(cols)")
@@ -302,59 +303,6 @@ class Renderer: NSObject, MTKViewDelegate {
         
         let estimatedVertexCount = buffer.rows * buffer.cols * 6 * 12
         var vertices = [Float](repeating: 0, count: estimatedVertexCount)
-//        var vertices: [Float] = []
-//        vertices.reserveCapacity(estimatedVertexCount)
-//        for rowIndex in 0..<snapshotBuffer.count {
-//            guard rowIndex < snapshotBuffer.count else { continue }
-//            let line = snapshotBuffer[rowIndex]
-//            for colIndex in 0..<snapshotBuffer[rowIndex].count {
-//                let char = line[colIndex]
-//                if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
-//                    vertices += charVerts
-//                    xPosition += xOffset
-//                }
-//            }
-//            xPosition = 0.0
-//            yPosition -= lineHeight
-//        }
-        
-//        snapshotBuffer.withUnsafeBufferPointer { rowPointer in
-//            for row in rowPointer {
-//                row.withUnsafeBufferPointer { colPointer in
-//                    for char in colPointer {
-//                        if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
-//                            vertices += charVerts
-//                            xPosition += xOffset
-//                        }
-//                    }
-//                }
-//                xPosition = 0.0
-//                yPosition -= lineHeight
-//            }
-//        }
-        
-//        vertices.withUnsafeMutableBufferPointer { bufferPointer in
-//            var currentIndex = 0
-//            snapshotBuffer.withUnsafeBufferPointer { rowPointer in
-//                for row in rowPointer {
-//                    row.withUnsafeBufferPointer { colPointer in
-//                        for char in colPointer {
-//                            if let (charVerts, xOffset) = generateQuad(for: char.character, font: fontAtlas, textureSize: textureSize, screenSize: viewSize, cursorX: xPosition, cursorY: yPosition, fgColor: char.foregroundColor, bgColor: char.backgroundColor) {
-//                                charVerts.withUnsafeBufferPointer { charVertsPointer in
-//                                    for vert in charVertsPointer {
-//                                        bufferPointer[currentIndex] = vert
-//                                        currentIndex += 1
-//                                    }
-//                                }
-//                                xPosition += xOffset
-//                            }
-//                        }
-//                    }
-//                    xPosition = 0.0
-//                    yPosition -= lineHeight
-//                }
-//            }
-//        }
         
         vertices.withUnsafeMutableBufferPointer { bufferPointer in
             var currentIndex = 0
@@ -367,7 +315,7 @@ class Renderer: NSObject, MTKViewDelegate {
                 // Iterate columns (characters) in the row
                 for char in row {
                     if let (charVerts, xOffset) = generateQuad(
-                        for: char.character,
+                        for: char.asciiCode,
                         font: fontAtlas,
                         textureSize: textureSize,
                         screenSize: viewSize,
