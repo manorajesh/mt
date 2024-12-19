@@ -291,7 +291,7 @@ class Renderer: NSObject, MTKViewDelegate {
     // Method to update vertices for dirty rows
     func updateVerticesForBuffer() {
         guard let buffer = buffer, let viewSize = viewSize else { return }
-        let snapshotBuffer = buffer.buffer
+        let snapshotBuffer = buffer
         
         let textureSize = CGSize(width: fontAtlas.atlasTexture!.width,
                                  height: fontAtlas.atlasTexture!.height)
@@ -310,10 +310,12 @@ class Renderer: NSObject, MTKViewDelegate {
             // Precompute the base address of the mutable buffer
             guard let bufferBase = bufferPointer.baseAddress else { return }
             
-            // Iterate rows directly
-            for row in snapshotBuffer {
-                // Iterate columns (characters) in the row
-                for char in row {
+            var rowIndex = 0
+            while rowIndex < buffer.rows {
+                var colIndex = 0
+                while colIndex < buffer.cols {
+                    let idx = snapshotBuffer.index(row: rowIndex, col: colIndex)
+                    let char = snapshotBuffer.buffer[idx]
                     if let (charVerts, xOffset) = generateQuad(
                         for: char.asciiCode,
                         font: fontAtlas,
@@ -334,9 +336,11 @@ class Renderer: NSObject, MTKViewDelegate {
                         }
                         xPosition += xOffset
                     }
+                    colIndex += 1
                 }
-                xPosition = 0.0
+                rowIndex += 1
                 yPosition -= lineHeight
+                xPosition = 0.0
             }
         }
         

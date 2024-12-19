@@ -5,8 +5,6 @@
 //  Created by Mano Rajesh on 10/15/24.
 //
 
-import Cocoa
-
 struct CharacterCell {
     var asciiCode: UInt8
     var foregroundColor: RGBA
@@ -28,24 +26,51 @@ struct CharacterCell {
 }
 
 class Buffer {
-    // 2D buffer: [row][column]
-    var buffer: [[CharacterCell]]
+    // 1D buffer with circular indexing
+    var buffer: [CharacterCell]
+    private var bufferStart: Int = 0  // Start of circular buffer
     
     // Terminal dimensions
     var rows: Int
     var cols: Int
     
-    // Cursor position (x, y)
     var cursorX: Int = 0
     var cursorY: Int = 0
     
-    // Current attributes
     private var currentAttributes: CharacterCell = CharacterCell()
     
     init(rows: Int, cols: Int) {
         self.rows = rows
         self.cols = cols
-        self.buffer = Array(repeating: Array(repeating: CharacterCell(), count: cols), count: rows)
+        self.buffer = Array(repeating: CharacterCell(), count: rows * cols)
+    }
+    
+    // Convert 2D coordinates to 1D index
+    func index(row: Int, col: Int) -> Int {
+        let realRow = (bufferStart + row) % rows
+        return (realRow * cols + col)
+    }
+    
+    // Access with subscript
+    subscript(row: Int, col: Int) -> CharacterCell {
+        get {
+            buffer[index(row: row, col: col)]
+        }
+        set {
+            buffer[index(row: row, col: col)] = newValue
+        }
+    }
+    
+    // Scroll one line
+    func scrollUp() {
+        bufferStart = (bufferStart + 1) % rows
+        // Clear new line
+        let newLineStart = index(row: rows - 1, col: 0)
+        var col = 0
+        while col < cols {
+            buffer[newLineStart + col] = CharacterCell()
+            col += 1
+        }
     }
     
     // MARK: - Cursor Movement
@@ -71,12 +96,6 @@ class Buffer {
         cursorY = min(max(y, 0), rows - 1)
     }
     
-    func scrollUp() {
-        buffer.removeFirst()
-        buffer.append(Array(repeating: CharacterCell(), count: cols))
-        cursorY = rows - 1
-    }
-    
     // MARK: - Erase Functions
     
     func eraseInDisplay(mode: Int) {
@@ -86,7 +105,7 @@ class Buffer {
         case 1: // Beginning of screen to cursor
             eraseAbove()
         case 2: // Entire screen
-            buffer = Array(repeating: Array(repeating: CharacterCell(), count: cols), count: rows)
+            buffer = Array(repeating: CharacterCell(), count: rows * cols)
             setCursorPosition(x: 0, y: 0)
         default:
             break
@@ -130,42 +149,37 @@ class Buffer {
     // MARK: - Character Handling
     
     func appendChar(_ byte: UInt8) {
-        // Cache cursor position locally
-        var x = cursorX
-        var y = cursorY
-        let bufferRows = rows
-        let bufferCols = cols
+        // Ensure in-bounds cursor
+        guard cursorY >= 0 && cursorY < rows, cursorX >= 0 && cursorX < cols else { return }
         
-        // Ensure in-bounds
-        guard y >= 0 && y < bufferRows, x >= 0 && x < bufferCols else { return }
-        
+        // Write character to buffer
         var cell = currentAttributes
         cell.asciiCode = byte
-        buffer[y][x] = cell
+        buffer[index(row: cursorY, col: cursorX)] = cell
         
-        // Update cursor position
-        x += 1
-        if x >= bufferCols {
-            x = 0
-            y += 1
-            if y >= bufferRows {
+        // Move cursor forward
+        cursorX += 1
+        if cursorX >= cols {
+            cursorX = 0
+            cursorY += 1
+            
+            // Scroll up if the cursor moves past the last row
+            if cursorY >= rows {
                 scrollUp()
-                y = bufferRows - 1
+                cursorY = rows - 1
             }
         }
-        
-        // Write back to cursorX and cursorY
-        cursorX = x
-        cursorY = y
     }
+
     
     func handleBackspace() {
         if cursorX > 0 {
             cursorX -= 1
-            buffer[cursorY][cursorX] = CharacterCell()
+            buffer[index(row: cursorY, col: cursorX)] = CharacterCell()
         } else if cursorY > 0 {
             cursorY -= 1
             cursorX = cols - 1
+            buffer[index(row: cursorY, col: cursorX)] = CharacterCell()
         }
     }
     
@@ -177,6 +191,7 @@ class Buffer {
         cursorY += 1
         if cursorY >= rows {
             scrollUp()
+            cursorY = rows - 1
         }
     }
     
@@ -213,62 +228,67 @@ class Buffer {
     
     private func eraseBelow() {
         // Clear current line from cursor
-        for x in cursorX..<cols {
-            buffer[cursorY][x] = CharacterCell()
+        for col in cursorX..<cols {
+            buffer[index(row: cursorY, col: col)] = CharacterCell()
         }
-        
         // Clear all lines below
-        for y in (cursorY + 1)..<rows {
-            buffer[y] = Array(repeating: CharacterCell(), count: cols)
+        for row in (cursorY + 1)..<rows {
+            for col in 0..<cols {
+                buffer[index(row: row, col: col)] = CharacterCell()
+            }
         }
     }
     
     private func eraseAbove() {
         // Clear current line up to cursor
-        for x in 0...cursorX {
-            buffer[cursorY][x] = CharacterCell()
+        for col in 0...cursorX {
+            buffer[index(row: cursorY, col: col)] = CharacterCell()
         }
-        
         // Clear all lines above
-        for y in 0..<cursorY {
-            buffer[y] = Array(repeating: CharacterCell(), count: cols)
+        for row in 0..<cursorY {
+            for col in 0..<cols {
+                buffer[index(row: row, col: col)] = CharacterCell()
+            }
         }
     }
     
     private func eraseLineFromCursor() {
-        for x in cursorX..<cols {
-            buffer[cursorY][x] = CharacterCell()
+        for col in cursorX..<cols {
+            buffer[index(row: cursorY, col: col)] = CharacterCell()
         }
     }
     
     private func eraseLineToCursor() {
-        for x in 0...cursorX {
-            buffer[cursorY][x] = CharacterCell()
+        for col in 0...cursorX {
+            buffer[index(row: cursorY, col: col)] = CharacterCell()
         }
     }
+
     
     private func eraseEntireLine() {
-        buffer[cursorY] = Array(repeating: CharacterCell(), count: cols)
+        for col in 0..<cols {
+            buffer[index(row: cursorY, col: col)] = CharacterCell()
+        }
     }
+
     
     // MARK: - Resizing
     
     func resize(rows newRows: Int, cols newCols: Int) {
-        var newBuffer = Array(repeating: Array(repeating: CharacterCell(), count: newCols), count: newRows)
+        var newBuffer = Array(repeating: CharacterCell(), count: newRows * newCols)
         
-        // Copy existing content that fits in the new dimensions
-        for y in 0..<min(rows, newRows) {
-            for x in 0..<min(cols, newCols) {
-                newBuffer[y][x] = buffer[y][x]
+        for row in 0..<min(rows, newRows) {
+            for col in 0..<min(cols, newCols) {
+                newBuffer[row * newCols + col] = self[row, col]
             }
         }
         
-        self.rows = newRows
-        self.cols = newCols
-        self.buffer = newBuffer
-        
-        // Ensure cursor is in-bounds
+        buffer = newBuffer
+        rows = newRows
+        cols = newCols
+        bufferStart = 0
         cursorX = min(cursorX, newCols - 1)
         cursorY = min(cursorY, newRows - 1)
     }
+
 }
