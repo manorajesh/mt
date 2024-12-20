@@ -7,11 +7,13 @@
 
 import Foundation
 import MetalKit
+import OSLog
 
 class FontAtlas {
     var charSet = #" !#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"#
     var atlasTexture: MTLTexture?
-    private var glyphs: [Character: Glyph] = [:]
+    var lineHeight: CGFloat?
+    var glyphsArray: [Glyph?] = Array(repeating: nil, count: 128)
     
     init?(device: MTLDevice, size: CGSize, font: NSFont) {
         let attributes: [NSAttributedString.Key: Any] = [
@@ -44,13 +46,14 @@ class FontAtlas {
         // Render each character into the context, tracking positions
         var currentX = 0
         var currentY = 0
-        let yPadding = 5
+        var currentCharIdx = 0
+        let yPadding = 0
         for character in charSet {
             let charString = String(character)
             let charSize = charString.size(withAttributes: attributes)
             
             if currentY + Int(charSize.height) + yPadding > bitmapHeight {
-                print("Altas too small; skipping remaining chars")
+                Logger().notice("Altas too small; skipping \(self.charSet.count-currentCharIdx) remaining chars")
                 break
             }
             
@@ -62,13 +65,14 @@ class FontAtlas {
             let drawRect = CGRect(x: CGFloat(currentX), y: CGFloat(currentY), width: charSize.width, height: charSize.height)
             charString.draw(in: drawRect, withAttributes: attributes)
             
-            let glyph = Glyph(width: Int(charSize.width),
-                              height: Int(charSize.height),
-                              x: currentX,
-                              y: currentY)
-            glyphs[character] = glyph
+            let asciiValue = Int(character.asciiValue!)
+            glyphsArray[asciiValue] = Glyph(width: Int(charSize.width),
+                                            height: Int(charSize.height),
+                                            x: currentX,
+                                            y: currentY)
             
             currentX += Int(charSize.width)
+            currentCharIdx += 1
         }
         
         guard let cgImage = context.makeImage() else { return nil }
@@ -90,11 +94,12 @@ class FontAtlas {
                          bytesPerRow: 4 * bitmapWidth)
         
         atlasTexture = texture
+        lineHeight = String(" ").size(withAttributes: attributes).height
     }
     
     
-    func glyph(for character: Character) -> Glyph? {
-        return glyphs[character]  // Return the glyph for the specified character
+    func glyph(for asciiCode: UInt8) -> Glyph? {
+        return glyphsArray[Int(asciiCode)]
     }
     
     func saveToFile() {
@@ -149,8 +154,8 @@ func saveFontAtlasToFile(fontAtlas: FontAtlas, fileURL: URL) {
     
     do {
         try pngData.write(to: fileURL)
-        print("FontAtlas saved to \(fileURL.path)")
+        Logger().info("FontAtlas saved to \(fileURL.path)")
     } catch {
-        print("Failed to save FontAtlas: \(error)")
+        Logger().notice("Failed to save FontAtlas: \(error)")
     }
 }
