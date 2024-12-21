@@ -2,10 +2,8 @@ mod font_atlas;
 
 use cocoa::{ appkit::NSView, base::id as cocoa_id };
 use core_graphics_types::geometry::CGSize;
-use fontdue::Font;
 use metal::*;
 use objc::{ rc::autoreleasepool, runtime::YES };
-use rusttype::Scale;
 use std::mem;
 use winit::{
     event::{ Event, WindowEvent },
@@ -80,6 +78,18 @@ impl TerminalView {
             .unwrap()
             .set_pixel_format(MTLPixelFormat::BGRA8Unorm);
 
+        // Enable blending on the color attachment
+        let color_attachment = pipeline_state_descriptor.color_attachments().object_at(0).unwrap();
+        color_attachment.set_blending_enabled(true);
+
+        // Configure the blend operations and factors
+        // color_attachment.set_rgb_blend_operation(MTLBlendOperation::Add);
+        color_attachment.set_alpha_blend_operation(MTLBlendOperation::Add);
+        color_attachment.set_source_rgb_blend_factor(MTLBlendFactor::SourceAlpha);
+        // color_attachment.set_destination_rgb_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
+        // color_attachment.set_source_alpha_blend_factor(MTLBlendFactor::SourceAlpha);
+        // color_attachment.set_destination_alpha_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
+
         // Define the vertex descriptor
         let vertex_descriptor = VertexDescriptor::new();
 
@@ -130,11 +140,11 @@ impl TerminalView {
     }
 
     fn create_font_atlas(device: &Device) -> FontAtlas {
-        let font_size = 500.0;
+        let font_size = 30.0;
 
         let data = include_bytes!("../fonts/monaco.ttf");
 
-        let font_atlas = FontAtlas::new(device, data, Scale::uniform(font_size)).expect(
+        let font_atlas = FontAtlas::new(device, data, font_size).expect(
             "Failed to create font atlas"
         );
         return font_atlas;
@@ -154,20 +164,13 @@ impl TerminalView {
         c: char,
         screen_position: [f32; 2],
         scale: [f32; 2]
-    ) -> [Vertex; 6] {
+    ) -> Option<([Vertex; 6], f32)> {
         // Retrieve glyph information
         let glyph_info = match self.font_atlas.glyph(c) {
             Some(g) => g,
             None => {
                 // Return an empty quad or a default quad if glyph not found
-                return [
-                    Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
-                    Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
-                    Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
-                    Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
-                    Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
-                    Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
-                ];
+                return None;
             }
         };
 
@@ -176,8 +179,12 @@ impl TerminalView {
         let height = glyph_info.size.1 * scale[1];
 
         // Position in pixels
+        let line_height = glyph_info.line_height;
         let x = screen_position[0];
-        let y = screen_position[1];
+        let y =
+            screen_position[1] +
+            line_height -
+            (glyph_info.offset.1 * scale[1] + glyph_info.size.1 * scale[1]);
 
         // Convert pixel positions to NDC
         let ndc_x = (x / self.window_width) * 2.0 - 1.0;
@@ -196,17 +203,20 @@ impl TerminalView {
         let tex_max = [glyph_info.tex_coords[2], glyph_info.tex_coords[3]];
 
         // Create six vertices for two triangles
-        [
-            // First triangle
-            Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
-            Vertex { position: bottom_left, tex_coords: [tex_min[0], tex_max[1]] },
-            Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
+        Some((
+            [
+                // First triangle
+                Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
+                Vertex { position: bottom_left, tex_coords: [tex_min[0], tex_max[1]] },
+                Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
 
-            // Second triangle
-            Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
-            Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
-            Vertex { position: top_right, tex_coords: [tex_max[0], tex_min[1]] },
-        ]
+                // Second triangle
+                Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
+                Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
+                Vertex { position: top_right, tex_coords: [tex_max[0], tex_min[1]] },
+            ],
+            glyph_info.advance,
+        ))
     }
 
     fn draw(&self, drawable: &MetalDrawableRef) {
@@ -290,7 +300,19 @@ fn main() {
     layer.set_drawable_size(CGSize::new(size.width as f64, size.height as f64));
 
     let mut terminal_view = TerminalView::new(device, size.width as f32, size.height as f32);
-    let vertex_data = terminal_view.generate_quad('A', [0.0, 0.0], [1.0, 1.0]);
+    let mut vertex_data = Vec::new();
+    let mut x = 0.0;
+    for c in "Hello, Metal!".chars() {
+        let (quad, width) = terminal_view.generate_quad(c, [x, 0.0], [1.0, 1.0]).unwrap();
+        vertex_data.extend_from_slice(&quad);
+        x += width;
+    }
+    let mut x = 0.0;
+    for c in " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~".chars() {
+        let (quad, width) = terminal_view.generate_quad(c, [x, 100.0], [1.0, 1.0]).unwrap();
+        vertex_data.extend_from_slice(&quad);
+        x += width;
+    }
     terminal_view.set_vertex_buffer(
         vertex_data.as_ptr() as *const std::ffi::c_void,
         (vertex_data.len() * mem::size_of::<Vertex>()) as NSUInteger,
