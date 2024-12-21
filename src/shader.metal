@@ -21,6 +21,6 @@ vertex VertexOut vertex_main(Vertex in [[stage_in]]) {
 fragment float4 fragment_main(VertexOut in [[stage_in]],
                               texture2d<float, access::sample> atlas [[ texture(0) ]],
                               sampler sampler0 [[ sampler(0) ]]) {
-    float alpha = atlas.sample(sampler0, in.tex_coords).r; // Assuming R channel holds alpha
-    return float4(1.0, 1.0, 1.0, alpha); // White color with sampled alpha
+    float4 glyphSample = atlas.sample(sampler0, in.tex_coords);
+    return glyphSample;
 }

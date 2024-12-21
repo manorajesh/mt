@@ -5,6 +5,7 @@ use core_graphics_types::geometry::CGSize;
 use fontdue::Font;
 use metal::*;
 use objc::{ rc::autoreleasepool, runtime::YES };
+use rusttype::Scale;
 use std::mem;
 use winit::{
     event::{ Event, WindowEvent },
@@ -29,10 +30,12 @@ struct TerminalView {
     vertex_buffer: Option<Buffer>,
     pipeline_state: RenderPipelineState,
     sampler_state: SamplerState,
+    window_width: f32,
+    window_height: f32,
 }
 
 impl TerminalView {
-    fn new(device: Device) -> Self {
+    fn new(device: Device, width: f32, height: f32) -> Self {
         let command_queue = device.new_command_queue();
 
         let pipeline_state = Self::create_pipeline_state(&device);
@@ -46,6 +49,8 @@ impl TerminalView {
             vertex_buffer: None,
             pipeline_state: pipeline_state,
             sampler_state: sampler_state,
+            window_width: width,
+            window_height: height,
         };
     }
 
@@ -127,12 +132,12 @@ impl TerminalView {
     fn create_font_atlas(device: &Device) -> FontAtlas {
         let font_size = 500.0;
 
-        let font_path = std::path::PathBuf
-            ::from(env!("CARGO_MANIFEST_DIR"))
-            .join("fonts/monaco.ttf");
+        let data = include_bytes!("../fonts/monaco.ttf");
 
-        let font_atlas = FontAtlas::new(device, font_path.as_path(), font_size);
-        return font_atlas.unwrap();
+        let font_atlas = FontAtlas::new(device, data, Scale::uniform(font_size)).expect(
+            "Failed to create font atlas"
+        );
+        return font_atlas;
     }
 
     fn set_vertex_buffer(
@@ -150,11 +155,11 @@ impl TerminalView {
         screen_position: [f32; 2],
         scale: [f32; 2]
     ) -> [Vertex; 6] {
-        // Retrieve glyph info
-        let glyph_info = match self.font_atlas.glyph_info(c) {
-            Some(info) => info,
+        // Retrieve glyph information
+        let glyph_info = match self.font_atlas.glyph(c) {
+            Some(g) => g,
             None => {
-                // Return an empty quad or a default quad if character not found
+                // Return an empty quad or a default quad if glyph not found
                 return [
                     Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
                     Vertex { position: [0.0, 0.0], tex_coords: [0.0, 0.0] },
@@ -166,40 +171,41 @@ impl TerminalView {
             }
         };
 
-        // Calculate texture coordinates
-        let u0 = (glyph_info.x as f32) / (self.font_atlas.atlas_width as f32);
-        let v0 = (glyph_info.y as f32) / (self.font_atlas.atlas_height as f32);
-        let u1 = ((glyph_info.x + glyph_info.width) as f32) / (self.font_atlas.atlas_width as f32);
-        let v1 =
-            ((glyph_info.y + glyph_info.height) as f32) / (self.font_atlas.atlas_height as f32);
+        // Compute quad size based on glyph size and scale
+        let width = glyph_info.size.0 * scale[0];
+        let height = glyph_info.size.1 * scale[1];
 
-        // Convert screen position and scale to NDC (-1 to 1)
-        // Assuming screen dimensions are known; for simplicity, let's assume 800x600
-        let screen_width = 800.0;
-        let screen_height = 600.0;
-
+        // Position in pixels
         let x = screen_position[0];
         let y = screen_position[1];
-        let w = scale[0];
-        let h = scale[1];
 
         // Convert pixel positions to NDC
-        let ndc_x0 = (x / screen_width) * 2.0 - 1.0;
-        let ndc_y0 = 1.0 - (y / screen_height) * 2.0;
-        let ndc_x1 = ((x + w) / screen_width) * 2.0 - 1.0;
-        let ndc_y1 = 1.0 - ((y + h) / screen_height) * 2.0;
+        let ndc_x = (x / self.window_width) * 2.0 - 1.0;
+        let ndc_y = 1.0 - (y / self.window_height) * 2.0;
+        let ndc_width = (width / self.window_width) * 2.0;
+        let ndc_height = (height / self.window_height) * 2.0;
 
-        // Define the quad vertices (two triangles)
+        // Define quad corners in NDC
+        let top_left = [ndc_x, ndc_y];
+        let bottom_left = [ndc_x, ndc_y - ndc_height];
+        let bottom_right = [ndc_x + ndc_width, ndc_y - ndc_height];
+        let top_right = [ndc_x + ndc_width, ndc_y];
+
+        // Texture coordinates from the font atlas
+        let tex_min = [glyph_info.tex_coords[0], glyph_info.tex_coords[1]];
+        let tex_max = [glyph_info.tex_coords[2], glyph_info.tex_coords[3]];
+
+        // Create six vertices for two triangles
         [
-            // First Triangle
-            Vertex { position: [ndc_x0, ndc_y1], tex_coords: [u0, v1] }, // Top-left
-            Vertex { position: [ndc_x0, ndc_y0], tex_coords: [u0, v0] }, // Bottom-left
-            Vertex { position: [ndc_x1, ndc_y0], tex_coords: [u1, v0] }, // Bottom-right
+            // First triangle
+            Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
+            Vertex { position: bottom_left, tex_coords: [tex_min[0], tex_max[1]] },
+            Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
 
-            // Second Triangle
-            Vertex { position: [ndc_x0, ndc_y1], tex_coords: [u0, v1] }, // Top-left
-            Vertex { position: [ndc_x1, ndc_y0], tex_coords: [u1, v0] }, // Bottom-right
-            Vertex { position: [ndc_x1, ndc_y1], tex_coords: [u1, v1] }, // Top-right
+            // Second triangle
+            Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
+            Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
+            Vertex { position: top_right, tex_coords: [tex_max[0], tex_min[1]] },
         ]
     }
 
@@ -245,33 +251,6 @@ impl TerminalView {
         // Commit the command buffer
         command_buffer.commit();
     }
-
-    pub fn render_text(&mut self, text: &str, position: [f32; 2], scale: [f32; 2]) {
-        let mut vertices: Vec<Vertex> = Vec::new();
-        let mut cursor = position;
-
-        for c in text.chars() {
-            let quad = self.generate_quad(c, cursor, scale);
-            vertices.extend_from_slice(&quad);
-
-            // Advance cursor based on glyph's width
-            if let Some(glyph_info) = self.font_atlas.glyph_info(c) {
-                cursor[0] +=
-                    ((glyph_info.width as f32) * scale[0]) / (self.font_atlas.atlas_width as f32);
-            }
-        }
-
-        // Create a vertex buffer
-        let buffer_length = vertices.len() * mem::size_of::<Vertex>();
-        let vertex_buffer = self.device.new_buffer_with_bytes_no_copy(
-            vertices.as_ptr() as *const _,
-            buffer_length as u64,
-            MTLResourceOptions::CPUCacheModeDefaultCache | MTLResourceOptions::StorageModeShared,
-            None
-        );
-
-        self.vertex_buffer = Some(vertex_buffer);
-    }
 }
 
 fn main() {
@@ -310,9 +289,13 @@ fn main() {
     let size = window.inner_size();
     layer.set_drawable_size(CGSize::new(size.width as f64, size.height as f64));
 
-    let mut terminal_view = TerminalView::new(device);
-
-    terminal_view.render_text("Hello, Metal!", [100.0, 100.0], [1.0, 1.0]);
+    let mut terminal_view = TerminalView::new(device, size.width as f32, size.height as f32);
+    let vertex_data = terminal_view.generate_quad('A', [0.0, 0.0], [1.0, 1.0]);
+    terminal_view.set_vertex_buffer(
+        vertex_data.as_ptr() as *const std::ffi::c_void,
+        (vertex_data.len() * mem::size_of::<Vertex>()) as NSUInteger,
+        MTLResourceOptions::CPUCacheModeDefaultCache | MTLResourceOptions::StorageModeManaged
+    );
 
     // Run the event loop
     event_loop
