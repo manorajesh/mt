@@ -56,7 +56,7 @@ impl Pty {
             // Safety: FromRawFd takes ownership, so we need to ensure it's not closed elsewhere
             let file = unsafe { std::fs::File::from_raw_fd(master_fd) };
             let mut reader = BufReader::new(file);
-            let mut buf = [0u8; 40960];
+            let mut buf = [0u8; 4096];
 
             loop {
                 match reader.read(&mut buf) {

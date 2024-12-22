@@ -50,15 +50,8 @@ impl TerminalView {
         let parser = ansi_parser::AnsiSimdParser::new(buffer.clone());
         let pty = pty::Pty::new(proxy, parser, 100, 80);
 
-        let initial_rows = 100;
-        let initial_cols = 80;
-        let initial_vertex_count = initial_rows * initial_cols * 6; // 6 vertices per cell
-        let initial_buffer_size = (initial_vertex_count * mem::size_of::<Vertex>()) as NSUInteger;
-
-        let vertex_buffer = device.new_buffer(
-            initial_buffer_size,
-            MTLResourceOptions::StorageModeShared
-        );
+        let initial_vertex_count = 100 * 80 * 6;
+        let vertex_buffer = Self::create_empty_buffer(&device, initial_vertex_count);
 
         return Self {
             device,
@@ -162,6 +155,11 @@ impl TerminalView {
         return device.new_sampler(&descriptor);
     }
 
+    fn create_empty_buffer(device: &Device, vertex_count: usize) -> Buffer {
+        let buffer_size = (vertex_count * mem::size_of::<Vertex>()) as NSUInteger;
+        return device.new_buffer(buffer_size, MTLResourceOptions::StorageModeShared);
+    }
+
     fn create_font_atlas(device: &Device) -> FontAtlas {
         let font_size = 25.0;
 
@@ -242,11 +240,7 @@ impl TerminalView {
         // Check if current buffer is sufficient
         if total_vertices > self.max_vertex_count {
             // Recreate the buffer with increased size
-            let new_buffer_size = (total_vertices * mem::size_of::<Vertex>()) as NSUInteger;
-            self.vertex_buffer = self.device.new_buffer(
-                new_buffer_size,
-                MTLResourceOptions::StorageModeShared
-            );
+            self.vertex_buffer = Self::create_empty_buffer(&self.device, total_vertices);
             self.max_vertex_count = total_vertices;
             tracing::info!("Resized vertex buffer to {} vertices", total_vertices);
         }
@@ -400,6 +394,12 @@ fn main() {
                                 terminal_view.font_atlas.char_width) as usize;
 
                             tracing::info!("Resized to {}x{}", rows, cols);
+                            let vertex_count = rows * cols * 6;
+                            terminal_view.max_vertex_count = vertex_count;
+                            terminal_view.vertex_buffer = TerminalView::create_empty_buffer(
+                                &terminal_view.device,
+                                vertex_count
+                            );
 
                             terminal_view.buffer.lock().unwrap().resize(rows, cols);
                             terminal_view.pty.resize(rows, cols);

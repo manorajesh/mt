@@ -1,7 +1,3 @@
-// src/ansi_parser.rs
-
-use wide::u8x16;
-
 use crate::buffer::Buffer;
 use std::sync::{ Arc, Mutex };
 
@@ -225,11 +221,13 @@ impl AnsiSimdParser {
             // If the parser is in Normal state, try skipping a full chunk
             if self.inner_parser.state == ParserState::Normal && i + 16 <= data.len() {
                 let chunk_end = (i + 16).min(data.len());
-                let mut chunk = [0; 16];
-                chunk.copy_from_slice(&data[i..chunk_end]);
+                let chunk: [u8; 16] = data[i..chunk_end].try_into().unwrap();
 
-                if !chunk_has_esc(chunk) {
+                if (unsafe { !chunk_has_esc(chunk) }) {
                     let mut buf = self.inner_parser.buffer.lock().unwrap();
+                    for byte in chunk.iter() {
+                        tracing::info!("Appending byte: {:?}", *byte as char);
+                    }
                     buf.append_bytes(&chunk);
                     i += chunk.len();
                     continue;
@@ -243,12 +241,20 @@ impl AnsiSimdParser {
     }
 }
 
-fn chunk_has_esc(chunk: [u8; 16]) -> bool {
-    let vec = u8x16::new(chunk);
-    let mask = vec.cmp_eq(u8x16::splat(0x1b));
-    if mask != u8x16::ZERO {
-        return true;
-    }
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn chunk_has_esc(chunk: [u8; 16]) -> bool {
+    use std::arch::aarch64::{ vaddv_u8, vceqq_u8, vdupq_n_u8, vget_high_u8, vget_low_u8, vld1q_u8 };
 
-    false
+    // Load the 16 bytes into a Neon register
+    let data = vld1q_u8(chunk.as_ptr());
+    // Duplicate 0x1B into each byte-lane
+    let esc = vdupq_n_u8(0x1b);
+    // Compare each byte; equals => 0xFF, else => 0x00
+    let mask = vceqq_u8(data, esc);
+    // Split into low and high 8 bytes
+    let lower = vget_low_u8(mask);
+    let upper = vget_high_u8(mask);
+    // Sum across each half; if any byte was 0xFF, the total is non-zero
+    vaddv_u8(lower) + vaddv_u8(upper) != 0
 }

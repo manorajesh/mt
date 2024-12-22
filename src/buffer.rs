@@ -135,9 +135,9 @@ impl Buffer {
 
     // Append Character
     pub fn append_char(&mut self, byte: u8) {
-        if self.cursor_y >= self.rows || self.cursor_x >= self.cols {
-            return;
-        }
+        // if self.cursor_y >= self.rows || self.cursor_x >= self.cols {
+        //     return;
+        // }
 
         let mut cell = self.current_attributes;
         cell.ascii_code = byte;
@@ -145,15 +145,15 @@ impl Buffer {
         self.buffer[idx] = cell;
 
         self.cursor_x += 1;
-        if self.cursor_x >= self.cols {
-            self.cursor_x = 0;
-            self.cursor_y += 1;
+        // if self.cursor_x >= self.cols {
+        //     self.cursor_x = 0;
+        //     self.cursor_y += 1;
 
-            if self.cursor_y >= self.rows {
-                self.scroll_up();
-                self.cursor_y = self.rows - 1;
-            }
-        }
+        //     if self.cursor_y >= self.rows {
+        //         self.scroll_up();
+        //         self.cursor_y = self.rows - 1;
+        //     }
+        // }
     }
 
     // Append Bytes
@@ -170,6 +170,15 @@ impl Buffer {
             let idx_start = self.index(self.cursor_y, self.cursor_x);
             let mut cell = self.current_attributes;
             for (offset, &byte) in bytes[start..start + chunk_size].iter().enumerate() {
+                if byte == b'\r' {
+                    self.add_carriage_return();
+                    self.cursor_x = 0;
+                    continue;
+                } else if byte == b'\n' {
+                    self.add_new_line();
+                    continue;
+                }
+
                 cell.ascii_code = byte;
                 self.buffer[idx_start + offset] = cell;
             }
@@ -177,31 +186,14 @@ impl Buffer {
             // Advance cursor
             self.cursor_x += chunk_size;
             start += chunk_size;
-
-            // If row is filled, move to the next row
-            if self.cursor_x >= self.cols {
-                self.cursor_x = 0;
-                self.cursor_y += 1;
-                if self.cursor_y >= self.rows {
-                    self.scroll_up();
-                    self.cursor_y = self.rows - 1;
-                }
-            }
         }
     }
 
     // Handle Backspace
     pub fn handle_backspace(&mut self) {
-        if self.cursor_x > 0 {
-            self.cursor_x -= 1;
-            let idx = self.index(self.cursor_y, self.cursor_x);
-            self.buffer[idx] = CharacterCell::new();
-        } else if self.cursor_y > 0 {
-            self.cursor_y -= 1;
-            self.cursor_x = self.cols - 1;
-            let idx = self.index(self.cursor_y, self.cursor_x);
-            self.buffer[idx] = CharacterCell::new();
-        }
+        self.cursor_x -= 1;
+        let idx = self.index(self.cursor_y, self.cursor_x);
+        self.buffer[idx] = CharacterCell::new();
     }
 
     // Carriage Return and Line Feed
