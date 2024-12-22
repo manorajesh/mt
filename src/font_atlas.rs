@@ -18,12 +18,13 @@ pub struct GlyphInfo {
     pub offset: (f32, f32), // (x, y) offset relative to baseline
     pub size: (f32, f32), // (width, height) of the glyph
     pub advance: f32, // Advance width for cursor movement
-    pub line_height: f32, // Line height for the font
 }
 
 pub struct FontAtlas {
     glyphs: HashMap<char, GlyphInfo>,
     pub texture: metal::Texture,
+    pub line_height: f32,
+    pub char_width: f32,
 }
 
 impl FontAtlas {
@@ -98,7 +99,6 @@ impl FontAtlas {
                 offset,
                 size,
                 advance,
-                line_height: font.metrics('G', font_size).bounds.height,
             });
 
             x += width + 1; // 1 pixel padding
@@ -137,6 +137,8 @@ impl FontAtlas {
         Ok(FontAtlas {
             glyphs: glyph_infos,
             texture,
+            line_height: font.metrics('G', font_size).bounds.height + 10.0,
+            char_width: font.metrics('G', font_size).advance_width,
         })
     }
 
