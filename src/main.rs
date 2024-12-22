@@ -83,12 +83,12 @@ impl TerminalView {
         color_attachment.set_blending_enabled(true);
 
         // Configure the blend operations and factors
-        // color_attachment.set_rgb_blend_operation(MTLBlendOperation::Add);
+        color_attachment.set_rgb_blend_operation(MTLBlendOperation::Add);
         color_attachment.set_alpha_blend_operation(MTLBlendOperation::Add);
         color_attachment.set_source_rgb_blend_factor(MTLBlendFactor::SourceAlpha);
-        // color_attachment.set_destination_rgb_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
-        // color_attachment.set_source_alpha_blend_factor(MTLBlendFactor::SourceAlpha);
-        // color_attachment.set_destination_alpha_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
+        color_attachment.set_destination_rgb_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
+        color_attachment.set_source_alpha_blend_factor(MTLBlendFactor::SourceAlpha);
+        color_attachment.set_destination_alpha_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
 
         // Define the vertex descriptor
         let vertex_descriptor = VertexDescriptor::new();
@@ -140,7 +140,7 @@ impl TerminalView {
     }
 
     fn create_font_atlas(device: &Device) -> FontAtlas {
-        let font_size = 30.0;
+        let font_size = 100.0;
 
         let data = include_bytes!("../fonts/monaco.ttf");
 
@@ -180,7 +180,7 @@ impl TerminalView {
 
         // Position in pixels
         let line_height = glyph_info.line_height;
-        let x = screen_position[0];
+        let x = screen_position[0] + glyph_info.offset.0 * scale[0];
         let y =
             screen_position[1] +
             line_height -
@@ -265,7 +265,7 @@ impl TerminalView {
 
 fn main() {
     // Initialize logging
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     // Create the event loop
     let event_loop = EventLoop::new().unwrap();
