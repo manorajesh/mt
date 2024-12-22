@@ -261,6 +261,8 @@ impl TerminalView {
                 if let Some((quad, width)) = self.generate_quad(c, [x, y], [1.0, 1.0]) {
                     vertex_data.extend_from_slice(&quad);
                     x += width;
+                } else {
+                    x += self.font_atlas.char_width;
                 }
             }
             x = 0.0;
