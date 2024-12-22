@@ -51,6 +51,7 @@ impl Buffer {
     }
 
     // Convert 2D coordinates to 1D index
+    #[inline(always)]
     fn index(&self, row: usize, col: usize) -> usize {
         let real_row = (self.buffer_start + row) % self.rows;
         real_row * self.cols + col
@@ -151,6 +152,40 @@ impl Buffer {
             if self.cursor_y >= self.rows {
                 self.scroll_up();
                 self.cursor_y = self.rows - 1;
+            }
+        }
+    }
+
+    // Append Bytes
+    pub fn append_bytes(&mut self, bytes: &[u8]) {
+        let mut start = 0;
+        while start < bytes.len() {
+            // Space left in the current row
+            let space_in_row = self.cols.saturating_sub(self.cursor_x);
+
+            // Number of bytes we can place in the current row
+            let chunk_size = usize::min(space_in_row, bytes.len() - start);
+
+            // Bulk copy
+            let idx_start = self.index(self.cursor_y, self.cursor_x);
+            let mut cell = self.current_attributes;
+            for (offset, &byte) in bytes[start..start + chunk_size].iter().enumerate() {
+                cell.ascii_code = byte;
+                self.buffer[idx_start + offset] = cell;
+            }
+
+            // Advance cursor
+            self.cursor_x += chunk_size;
+            start += chunk_size;
+
+            // If row is filled, move to the next row
+            if self.cursor_x >= self.cols {
+                self.cursor_x = 0;
+                self.cursor_y += 1;
+                if self.cursor_y >= self.rows {
+                    self.scroll_up();
+                    self.cursor_y = self.rows - 1;
+                }
             }
         }
     }

@@ -1,5 +1,7 @@
 // src/ansi_parser.rs
 
+use wide::u8x16;
+
 use crate::buffer::Buffer;
 use std::sync::{ Arc, Mutex };
 
@@ -200,9 +202,53 @@ impl AnsiParser {
                 buffer.apply_graphic_rendition(&self.params);
             }
             _ => {
-                // Unhandled CSI sequence
-                // Optionally log or ignore
+                tracing::debug!("Unhandled CSI sequence: {:?} {:?}", self.params, self.final_byte);
             }
         }
     }
+}
+
+pub struct AnsiSimdParser {
+    inner_parser: AnsiParser,
+}
+
+impl AnsiSimdParser {
+    pub fn new(buffer: Arc<Mutex<Buffer>>) -> Self {
+        Self {
+            inner_parser: AnsiParser::new(buffer),
+        }
+    }
+
+    pub fn parse(&mut self, data: &[u8]) {
+        let mut i = 0;
+        while i < data.len() {
+            // If the parser is in Normal state, try skipping a full chunk
+            if self.inner_parser.state == ParserState::Normal && i + 16 <= data.len() {
+                let chunk_end = (i + 16).min(data.len());
+                let mut chunk = [0; 16];
+                chunk.copy_from_slice(&data[i..chunk_end]);
+
+                if !chunk_has_esc(chunk) {
+                    let mut buf = self.inner_parser.buffer.lock().unwrap();
+                    buf.append_bytes(&chunk);
+                    i += chunk.len();
+                    continue;
+                }
+            }
+
+            // Otherwise, parse the current byte normally
+            self.inner_parser.parse_byte(data[i]);
+            i += 1;
+        }
+    }
+}
+
+fn chunk_has_esc(chunk: [u8; 16]) -> bool {
+    let vec = u8x16::new(chunk);
+    let mask = vec.cmp_eq(u8x16::splat(0x1b));
+    if mask != u8x16::ZERO {
+        return true;
+    }
+
+    false
 }

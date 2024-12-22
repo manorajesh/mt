@@ -47,7 +47,7 @@ impl TerminalView {
         let sampler_state = Self::create_sampler_state(&device);
         let font_atlas = Self::create_font_atlas(&device);
         let buffer = Arc::new(Mutex::new(buffer::Buffer::new(100, 80)));
-        let parser = ansi_parser::AnsiParser::new(buffer.clone());
+        let parser = ansi_parser::AnsiSimdParser::new(buffer.clone());
         let pty = pty::Pty::new(proxy, parser, 100, 80);
 
         let initial_rows = 100;
@@ -163,7 +163,7 @@ impl TerminalView {
     }
 
     fn create_font_atlas(device: &Device) -> FontAtlas {
-        let font_size = 30.0;
+        let font_size = 25.0;
 
         let data = include_bytes!("../fonts/monaco.ttf");
 

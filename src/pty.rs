@@ -11,7 +11,7 @@ use nix::{ fcntl::{ fcntl, F_SETFL }, pty::forkpty, unistd::execv, sys::termios:
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
-use crate::ansi_parser::AnsiParser;
+use crate::ansi_parser::{ AnsiParser, AnsiSimdParser };
 use crate::CustomEvent;
 
 pub struct Pty {
@@ -21,7 +21,7 @@ pub struct Pty {
 impl Pty {
     pub fn new(
         proxy: EventLoopProxy<CustomEvent>,
-        mut parser: AnsiParser,
+        mut parser: AnsiSimdParser,
         rows: usize,
         cols: usize
     ) -> Self {
@@ -56,7 +56,7 @@ impl Pty {
             // Safety: FromRawFd takes ownership, so we need to ensure it's not closed elsewhere
             let file = unsafe { std::fs::File::from_raw_fd(master_fd) };
             let mut reader = BufReader::new(file);
-            let mut buf = [0u8; 4096];
+            let mut buf = [0u8; 40960];
 
             loop {
                 match reader.read(&mut buf) {
@@ -68,9 +68,7 @@ impl Pty {
                         let data = &buf[..n];
 
                         // Parse the ANSI data
-                        for byte in data {
-                            parser.parse_byte(*byte);
-                        }
+                        parser.parse(data);
 
                         // window.request_redraw();
                         proxy.send_event(CustomEvent::RequestRedraw).expect("Failed to send event");
