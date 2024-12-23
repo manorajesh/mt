@@ -415,6 +415,8 @@ fn main() {
                                 vertex_count
                             );
 
+                            window.set_title(&format!("mt - {}x{}", rows, cols));
+
                             terminal_view.buffer.lock().unwrap().resize(rows, cols);
                             terminal_view.pty.resize(rows, cols);
                             terminal_view.window_width = size.width as f32;
