@@ -9,7 +9,7 @@ use metal::*;
 use objc::{ rc::autoreleasepool, runtime::YES };
 use std::{ mem, sync::{ Arc, Mutex }, time::Instant };
 use winit::{
-    event::{ Event, KeyEvent, WindowEvent },
+    event::{ Event, KeyEvent, Modifiers, WindowEvent },
     event_loop::{ ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy },
     keyboard::{ Key, NamedKey },
     raw_window_handle::{ HasWindowHandle, RawWindowHandle },
@@ -47,7 +47,7 @@ impl TerminalView {
         let sampler_state = Self::create_sampler_state(&device);
         let font_atlas = Self::create_font_atlas(&device);
         let buffer = Arc::new(Mutex::new(buffer::Buffer::new(100, 80)));
-        let parser = ansi_parser::AnsiParser::new(buffer.clone());
+        let parser = ansi_parser::AnsiSimdParser::new(buffer.clone());
         let pty = pty::Pty::new(proxy, parser, 100, 80);
 
         let initial_vertex_count = 100 * 80 * 6;
@@ -251,7 +251,7 @@ impl TerminalView {
         for row in 0..buffer.rows {
             for col in 0..buffer.cols {
                 let cell = buffer.get_cell(row, col);
-                let c = cell.ascii_code as char;
+                let c = cell as char;
                 if let Some((quad, width)) = self.generate_quad(c, [x, y], [1.0, 1.0]) {
                     vertex_data.extend_from_slice(&quad);
                     x += width;

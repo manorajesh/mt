@@ -21,7 +21,7 @@ pub struct Pty {
 impl Pty {
     pub fn new(
         proxy: EventLoopProxy<CustomEvent>,
-        mut parser: AnsiParser,
+        mut parser: AnsiSimdParser,
         rows: usize,
         cols: usize
     ) -> Self {
@@ -53,36 +53,45 @@ impl Pty {
 
         // Spawn a thread to read from the pty
         thread::spawn(move || {
-            // Safety: FromRawFd takes ownership, so we need to ensure it's not closed elsewhere
-            let file = unsafe { std::fs::File::from_raw_fd(master_fd) };
-            let mut reader = BufReader::new(file);
-            let mut buf = [0u8; 4096];
+            // Larger buffer size - 1MB
+            let mut buf = [0u8; 1024 * 1024];
 
             loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => {
-                        // EOF reached
-                        break;
-                    }
-                    Ok(n) => {
-                        let data = &buf[..n];
+                // Batch read multiple times before parsing
+                let mut total_read = 0;
+                for _ in 0..4 {
+                    // Try up to 4 reads before processing
+                    unsafe {
+                        let n = libc::read(
+                            master_fd,
+                            buf.as_mut_ptr().add(total_read) as *mut _,
+                            buf.len() - total_read
+                        );
 
-                        // Parse the ANSI data
-                        for byte in data.iter() {
-                            parser.parse_byte(*byte);
+                        match n {
+                            0 => {
+                                return;
+                            } // EOF
+                            n if n > 0 => {
+                                total_read += n as usize;
+                                if total_read >= buf.len() / 2 {
+                                    break; // Buffer getting full, process it
+                                }
+                            }
+                            _ => {
+                                // if *libc::__errno_location() == libc::EAGAIN {
+                                //     break; // No more data available right now
+                                // }
+                                // return;
+                            }
                         }
+                    }
+                }
 
-                        // window.request_redraw();
-                        proxy.send_event(CustomEvent::RequestRedraw).expect("Failed to send event");
-                    }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // No data available currently, yield the thread
-                        thread::yield_now();
-                    }
-                    Err(e) => {
-                        tracing::error!("Error reading from pty: {}", e);
-                        break;
-                    }
+                if total_read > 0 {
+                    let data = &buf[..total_read];
+                    parser.parse(data);
+                    proxy.send_event(CustomEvent::RequestRedraw).expect("Failed to send event");
                 }
             }
         });
