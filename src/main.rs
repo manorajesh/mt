@@ -34,7 +34,7 @@ pub struct TerminalView {
     sampler_state: SamplerState,
     window_width: f32,
     window_height: f32,
-    buffer: Arc<Mutex<buffer::TextBuffer>>,
+    buffer: Arc<Mutex<buffer::Buffer>>,
     pty: pty::Pty,
     max_vertex_count: usize,
 }
@@ -46,7 +46,7 @@ impl TerminalView {
         let pipeline_state = Self::create_pipeline_state(&device);
         let sampler_state = Self::create_sampler_state(&device);
         let font_atlas = Self::create_font_atlas(&device);
-        let buffer = Arc::new(Mutex::new(buffer::TextBuffer::new(100, 80)));
+        let buffer = Arc::new(Mutex::new(buffer::Buffer::new(100, 80)));
         let parser = ansi_parser::AnsiParser::new(buffer.clone());
         let pty = pty::Pty::new(proxy, parser, 100, 80);
 
@@ -232,9 +232,9 @@ impl TerminalView {
     }
 
     fn update_vertices_for_buffer(&mut self) {
-        let buffer: std::sync::MutexGuard<'_, buffer::TextBuffer> = self.buffer.lock().unwrap();
-        let rows = buffer.num_rows;
-        let cols = buffer.num_cols;
+        let buffer: std::sync::MutexGuard<'_, buffer::Buffer> = self.buffer.lock().unwrap();
+        let rows = buffer.rows;
+        let cols = buffer.cols;
         let total_vertices = rows * cols * 6;
 
         // Check if current buffer is sufficient
@@ -248,24 +248,10 @@ impl TerminalView {
         let mut vertex_data = Vec::with_capacity(total_vertices);
         let mut x = 0.0;
         let mut y = 0.0;
-        // for row in 0..buffer.rows {
-        //     for col in 0..buffer.cols {
-        //         let cell = buffer.get_cell(row, col);
-        //         let c = cell.ascii_code as char;
-        //         if let Some((quad, width)) = self.generate_quad(c, [x, y], [1.0, 1.0]) {
-        //             vertex_data.extend_from_slice(&quad);
-        //             x += width;
-        //         } else {
-        //             x += self.font_atlas.char_width;
-        //         }
-        //     }
-        //     x = 0.0;
-        //     y += self.font_atlas.line_height;
-        // }
-        for idx_start in &buffer.rows {
-            let row = buffer.get_row(*idx_start);
-            for cell in row {
-                let c = buffer.get_char(*cell);
+        for row in 0..buffer.rows {
+            for col in 0..buffer.cols {
+                let cell = buffer.get_cell(row, col);
+                let c = cell.ascii_code as char;
                 if let Some((quad, width)) = self.generate_quad(c, [x, y], [1.0, 1.0]) {
                     vertex_data.extend_from_slice(&quad);
                     x += width;
@@ -276,6 +262,20 @@ impl TerminalView {
             x = 0.0;
             y += self.font_atlas.line_height;
         }
+        // for idx_start in &buffer.rows {
+        //     let row = buffer.get_row(*idx_start);
+        //     for cell in row {
+        //         let c = buffer.get_char(*cell);
+        //         if let Some((quad, width)) = self.generate_quad(c, [x, y], [1.0, 1.0]) {
+        //             vertex_data.extend_from_slice(&quad);
+        //             x += width;
+        //         } else {
+        //             x += self.font_atlas.char_width;
+        //         }
+        //     }
+        //     x = 0.0;
+        //     y += self.font_atlas.line_height;
+        // }
         drop(buffer);
         unsafe {
             let buffer_ptr = self.vertex_buffer.contents() as *mut Vertex;
@@ -415,7 +415,7 @@ fn main() {
                                 vertex_count
                             );
 
-                            // terminal_view.buffer.lock().unwrap().resize(rows, cols);
+                            terminal_view.buffer.lock().unwrap().resize(rows, cols);
                             terminal_view.pty.resize(rows, cols);
                             terminal_view.window_width = size.width as f32;
                             terminal_view.window_height = size.height as f32;
