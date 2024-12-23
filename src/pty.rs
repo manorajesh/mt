@@ -21,7 +21,7 @@ pub struct Pty {
 impl Pty {
     pub fn new(
         proxy: EventLoopProxy<CustomEvent>,
-        mut parser: AnsiSimdParser,
+        mut parser: AnsiParser,
         rows: usize,
         cols: usize
     ) -> Self {
@@ -68,7 +68,9 @@ impl Pty {
                         let data = &buf[..n];
 
                         // Parse the ANSI data
-                        parser.parse(data);
+                        for byte in data.iter() {
+                            parser.parse_byte(*byte);
+                        }
 
                         // window.request_redraw();
                         proxy.send_event(CustomEvent::RequestRedraw).expect("Failed to send event");
