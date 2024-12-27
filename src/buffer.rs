@@ -70,7 +70,13 @@ impl Buffer {
 
         // Ensure the buffer is large enough for current_index().
         let idx = self.index(self.cursor_y, self.cursor_x);
-        self.buffer[idx] = byte;
+        if idx < self.buffer.len() {
+            self.buffer[idx] = byte;
+        } else {
+            // Buffer is full, so we can't write the character.
+            // (Typical terminal behavior is to do nothing in this case.)
+            return;
+        }
 
         // Move cursor forward in the visible region.
         self.cursor_x += 1;
@@ -98,8 +104,14 @@ impl Buffer {
             }
         } else {
             let idx = self.index(self.cursor_y, self.cursor_x);
-            self.buffer[idx..idx + bytes.len()].copy_from_slice(bytes);
-            self.cursor_x += bytes.len();
+            if idx + bytes.len() <= self.buffer.len() {
+                self.buffer[idx..idx + bytes.len()].copy_from_slice(bytes);
+                self.cursor_x += bytes.len();
+            } else {
+                let chunk_size = self.buffer.len() - idx;
+                self.buffer[idx..].copy_from_slice(&bytes[..chunk_size]);
+                self.cursor_x = bytes.len() - chunk_size;
+            }
         }
     }
 

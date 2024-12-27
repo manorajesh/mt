@@ -20,7 +20,7 @@ pub struct Pty {
 
 impl Pty {
     pub fn new(
-        proxy: EventLoopProxy<CustomEvent>,
+        proxy: EventLoopProxy<()>,
         mut parser: AnsiSimdParser,
         rows: usize,
         cols: usize
@@ -91,7 +91,7 @@ impl Pty {
                 if total_read > 0 {
                     let data = &buf[..total_read];
                     parser.parse(data);
-                    proxy.send_event(CustomEvent::RequestRedraw).expect("Failed to send event");
+                    proxy.send_event(()).expect("Failed to send event");
                 }
             }
         });

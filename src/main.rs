@@ -9,11 +9,13 @@ use metal::*;
 use objc::{ rc::autoreleasepool, runtime::YES };
 use std::{ mem, sync::{ Arc, Mutex }, time::Instant };
 use winit::{
+    application::ApplicationHandler,
     event::{ Event, KeyEvent, Modifiers, WindowEvent },
     event_loop::{ ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy },
     keyboard::{ Key, NamedKey },
+    platform::macos::EventLoopBuilderExtMacOS,
     raw_window_handle::{ HasWindowHandle, RawWindowHandle },
-    window::{ Window, WindowBuilder },
+    window::{ Window, WindowAttributes },
 };
 
 use font_atlas::FontAtlas;
@@ -32,15 +34,20 @@ pub struct TerminalView {
     vertex_buffer: Buffer,
     pipeline_state: RenderPipelineState,
     sampler_state: SamplerState,
-    window_width: f32,
-    window_height: f32,
+    window_width: Option<f32>,
+    window_height: Option<f32>,
     buffer: Arc<Mutex<buffer::Buffer>>,
     pty: pty::Pty,
     max_vertex_count: usize,
+    window: Option<Window>,
+    layer: Option<MetalLayer>,
 }
 
 impl TerminalView {
-    fn new(proxy: EventLoopProxy<CustomEvent>, device: Device, width: f32, height: f32) -> Self {
+    fn new(proxy: EventLoopProxy<()>) -> Self {
+        // Initialize Metal
+        let device = Device::system_default().expect("No Metal device found");
+
         let command_queue = device.new_command_queue();
 
         let pipeline_state = Self::create_pipeline_state(&device);
@@ -60,11 +67,13 @@ impl TerminalView {
             vertex_buffer: vertex_buffer,
             pipeline_state: pipeline_state,
             sampler_state: sampler_state,
-            window_width: width,
-            window_height: height,
+            window_width: None,
+            window_height: None,
             buffer: buffer,
             pty: pty,
             max_vertex_count: initial_vertex_count,
+            window: None,
+            layer: None,
         };
     }
 
@@ -199,10 +208,10 @@ impl TerminalView {
             (glyph_info.offset.1 * scale[1] + glyph_info.size.1 * scale[1]);
 
         // Convert pixel positions to NDC
-        let ndc_x = (x / self.window_width) * 2.0 - 1.0;
-        let ndc_y = 1.0 - (y / self.window_height) * 2.0;
-        let ndc_width = (width / self.window_width) * 2.0;
-        let ndc_height = (height / self.window_height) * 2.0;
+        let ndc_x = (x / self.window_width.unwrap()) * 2.0 - 1.0;
+        let ndc_y = 1.0 - (y / self.window_height.unwrap()) * 2.0;
+        let ndc_width = (width / self.window_width.unwrap()) * 2.0;
+        let ndc_height = (height / self.window_height.unwrap()) * 2.0;
 
         // Define quad corners in NDC
         let top_left = [ndc_x, ndc_y];
@@ -283,8 +292,15 @@ impl TerminalView {
         }
     }
 
-    fn draw(&mut self, drawable: &MetalDrawableRef) {
+    fn draw(&mut self) {
         self.update_vertices_for_buffer();
+
+        let drawable = match self.layer.as_ref().unwrap().next_drawable() {
+            Some(drawable) => drawable,
+            None => {
+                return;
+            }
+        };
 
         // Create a render pass descriptor
         let render_pass_descriptor = RenderPassDescriptor::new();
@@ -325,6 +341,8 @@ impl TerminalView {
         // Present the drawable
         command_buffer.present_drawable(drawable);
 
+        self.window.as_ref().unwrap().pre_present_notify();
+
         // Commit the command buffer
         command_buffer.commit();
     }
@@ -335,130 +353,117 @@ pub enum CustomEvent {
     RequestRedraw,
 }
 
-fn main() {
+impl ApplicationHandler for TerminalView {
+    fn window_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: WindowEvent
+    ) {
+        // Event::AboutToWait => window.request_redraw(),
+        match event {
+            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::RedrawRequested => {
+                autoreleasepool(|| {
+                    self.draw();
+                });
+            }
+            WindowEvent::Resized(size) => {
+                self.layer
+                    .as_ref()
+                    .unwrap()
+                    .set_drawable_size(CGSize::new(size.width as f64, size.height as f64));
+                let rows = ((size.height as f32) / self.font_atlas.line_height) as usize;
+                let cols = ((size.width as f32) / self.font_atlas.char_width) as usize;
+
+                tracing::info!("Resized to {}x{}", rows, cols);
+                let vertex_count = rows * cols * 6;
+                self.max_vertex_count = vertex_count;
+                self.vertex_buffer = TerminalView::create_empty_buffer(&self.device, vertex_count);
+
+                self.window.as_mut().unwrap().set_title(&format!("mt - {}x{}", rows, cols));
+
+                self.buffer.lock().unwrap().resize(rows, cols);
+                self.pty.resize(rows, cols);
+                self.window_width = Some(size.width as f32);
+                self.window_height = Some(size.height as f32);
+
+                autoreleasepool(|| {
+                    self.draw();
+                });
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                match event {
+                    KeyEvent { logical_key: Key::Character(c), state, .. } => if
+                        state == winit::event::ElementState::Pressed
+                    {
+                        self.pty.write(c.as_bytes());
+                    }
+                    // enter key
+                    KeyEvent { logical_key: Key::Named(c), state, .. } => if
+                        state == winit::event::ElementState::Pressed
+                    {
+                        match c {
+                            NamedKey::Enter => self.pty.write(b"\n"),
+                            NamedKey::Tab => self.pty.write(b"\t"),
+                            NamedKey::Space => self.pty.write(b" "),
+                            NamedKey::Backspace => self.pty.write(b"\x7f"),
+                            _ => (),
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+    }
+
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        tracing::info!("Resumed");
+        // Create a Metal layer
+        let layer = MetalLayer::new();
+        layer.set_device(&self.device);
+        layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
+        layer.set_framebuffer_only(true);
+        layer.set_maximum_drawable_count(3);
+
+        let window_attributes = WindowAttributes::default().with_title("mt");
+        let window = event_loop.create_window(window_attributes).unwrap();
+
+        // Associate the Metal layer with the window's NSView
+        unsafe {
+            if let Ok(RawWindowHandle::AppKit(rw)) = window.window_handle().map(|wh| wh.as_raw()) {
+                let view = rw.ns_view.as_ptr() as cocoa_id;
+                view.setWantsLayer(YES);
+                view.setLayer(mem::transmute(layer.as_ref()));
+            }
+        }
+
+        self.window_width = Some(window.inner_size().width as f32);
+        self.window_height = Some(window.inner_size().height as f32);
+        self.layer = Some(layer);
+        self.window = Some(window);
+    }
+
+    fn memory_warning(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        tracing::info!("Memory warning");
+    }
+
+    fn user_event(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, _event: ()) {
+        self.window.as_ref().unwrap().request_redraw();
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
     // Create the event loop with proxy
-    let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build().unwrap();
+    let event_loop = EventLoop::new()?;
     let proxy = event_loop.create_proxy();
 
-    // Build the window
-    let window = WindowBuilder::new()
-        .with_title("mt")
-        .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
-        .build(&event_loop)
-        .unwrap();
-
-    // Initialize Metal
-    let device = Device::system_default().expect("No Metal device found");
-
-    // Create a Metal layer
-    let layer = MetalLayer::new();
-    layer.set_device(&device);
-    layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
-    layer.set_framebuffer_only(true);
-    layer.set_maximum_drawable_count(3);
-
-    // Associate the Metal layer with the window's NSView
-    unsafe {
-        if let Ok(RawWindowHandle::AppKit(rw)) = window.window_handle().map(|wh| wh.as_raw()) {
-            let view = rw.ns_view.as_ptr() as cocoa_id;
-            view.setWantsLayer(YES);
-            view.setLayer(mem::transmute(layer.as_ref()));
-        }
-    }
-
-    // Set the drawable size
-    let size = window.inner_size();
-    layer.set_drawable_size(CGSize::new(size.width as f64, size.height as f64));
-
-    let mut terminal_view = TerminalView::new(proxy, device, size.width as f32, size.height as f32);
+    let mut terminal_view = TerminalView::new(proxy);
 
     // Run the event loop
-    event_loop
-        .run(move |event, event_loop| {
-            event_loop.set_control_flow(ControlFlow::Poll);
-
-            match event {
-                // Event::AboutToWait => window.request_redraw(),
-                Event::WindowEvent { event, .. } =>
-                    match event {
-                        WindowEvent::CloseRequested => event_loop.exit(),
-                        WindowEvent::RedrawRequested => {
-                            autoreleasepool(|| {
-                                // Get the next drawable
-                                let drawable = match layer.next_drawable() {
-                                    Some(drawable) => drawable,
-                                    None => {
-                                        return;
-                                    }
-                                };
-
-                                terminal_view.draw(drawable);
-                            });
-                        }
-                        WindowEvent::Resized(size) => {
-                            layer.set_drawable_size(
-                                CGSize::new(size.width as f64, size.height as f64)
-                            );
-                            let rows = ((size.height as f32) /
-                                terminal_view.font_atlas.line_height) as usize;
-                            let cols = ((size.width as f32) /
-                                terminal_view.font_atlas.char_width) as usize;
-
-                            tracing::info!("Resized to {}x{}", rows, cols);
-                            let vertex_count = rows * cols * 6;
-                            terminal_view.max_vertex_count = vertex_count;
-                            terminal_view.vertex_buffer = TerminalView::create_empty_buffer(
-                                &terminal_view.device,
-                                vertex_count
-                            );
-
-                            window.set_title(&format!("mt - {}x{}", rows, cols));
-
-                            terminal_view.buffer.lock().unwrap().resize(rows, cols);
-                            terminal_view.pty.resize(rows, cols);
-                            terminal_view.window_width = size.width as f32;
-                            terminal_view.window_height = size.height as f32;
-                            let drawable = match layer.next_drawable() {
-                                Some(drawable) => drawable,
-                                None => {
-                                    return;
-                                }
-                            };
-
-                            terminal_view.draw(drawable);
-                        }
-                        WindowEvent::KeyboardInput { event, .. } => {
-                            match event {
-                                KeyEvent { logical_key: Key::Character(c), state, .. } => if
-                                    state == winit::event::ElementState::Pressed
-                                {
-                                    terminal_view.pty.write(c.as_bytes());
-                                }
-                                // enter key
-                                KeyEvent { logical_key: Key::Named(c), state, .. } => if
-                                    state == winit::event::ElementState::Pressed
-                                {
-                                    match c {
-                                        NamedKey::Enter => terminal_view.pty.write(b"\n"),
-                                        NamedKey::Tab => terminal_view.pty.write(b"\t"),
-                                        NamedKey::Space => terminal_view.pty.write(b" "),
-                                        NamedKey::Backspace => terminal_view.pty.write(b"\x7f"),
-                                        _ => (),
-                                    }
-                                }
-                                _ => (),
-                            }
-                        }
-                        _ => (),
-                    }
-                Event::UserEvent(CustomEvent::RequestRedraw) => {
-                    window.request_redraw();
-                }
-                _ => (),
-            }
-        })
-        .unwrap();
+    Ok(event_loop.run_app(&mut terminal_view)?)
 }
