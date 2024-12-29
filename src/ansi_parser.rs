@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::buffer::TextBuffer;
 use std::sync::{ Arc, Mutex };
 
 pub struct AnsiParser {
@@ -8,7 +8,7 @@ pub struct AnsiParser {
     intermediate_bytes: Vec<u8>,
     final_byte: u8,
     osc_bytes: Vec<u8>,
-    buffer: Arc<Mutex<Buffer>>,
+    buffer: Arc<Mutex<TextBuffer>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +21,7 @@ enum ParserState {
 }
 
 impl AnsiParser {
-    pub fn new(buffer: Arc<Mutex<Buffer>>) -> Self {
+    pub fn new(buffer: Arc<Mutex<TextBuffer>>) -> Self {
         Self {
             state: ParserState::Normal,
             param_buffer: Vec::new(),
@@ -198,7 +198,11 @@ impl AnsiParser {
                 buffer.apply_graphic_rendition(&self.params);
             }
             _ => {
-                tracing::debug!("Unhandled CSI sequence: {:?} {:?}", self.params, self.final_byte);
+                tracing::info!(
+                    "Unhandled CSI sequence: {:?} {:?}",
+                    self.params,
+                    self.final_byte as char
+                );
             }
         }
     }
@@ -209,7 +213,7 @@ pub struct AnsiSimdParser {
 }
 
 impl AnsiSimdParser {
-    pub fn new(buffer: Arc<Mutex<Buffer>>) -> Self {
+    pub fn new(buffer: Arc<Mutex<TextBuffer>>) -> Self {
         Self {
             inner_parser: AnsiParser::new(buffer),
         }

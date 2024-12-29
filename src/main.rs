@@ -36,7 +36,7 @@ pub struct TerminalView {
     sampler_state: SamplerState,
     window_width: Option<f32>,
     window_height: Option<f32>,
-    buffer: Arc<Mutex<buffer::Buffer>>,
+    buffer: Arc<Mutex<buffer::TextBuffer>>,
     pty: pty::Pty,
     max_vertex_count: usize,
     window: Option<Window>,
@@ -53,7 +53,7 @@ impl TerminalView {
         let pipeline_state = Self::create_pipeline_state(&device);
         let sampler_state = Self::create_sampler_state(&device);
         let font_atlas = Self::create_font_atlas(&device);
-        let buffer = Arc::new(Mutex::new(buffer::Buffer::new(100, 80)));
+        let buffer = Arc::new(Mutex::new(buffer::TextBuffer::new(100, 80)));
         let parser = ansi_parser::AnsiSimdParser::new(buffer.clone());
         let pty = pty::Pty::new(proxy, parser, 100, 80);
 
@@ -241,7 +241,7 @@ impl TerminalView {
     }
 
     fn update_vertices_for_buffer(&mut self) {
-        let buffer: std::sync::MutexGuard<'_, buffer::Buffer> = self.buffer.lock().unwrap();
+        let buffer: std::sync::MutexGuard<'_, buffer::TextBuffer> = self.buffer.lock().unwrap();
         let rows = buffer.rows;
         let cols = buffer.cols;
         let total_vertices = rows * cols * 6;

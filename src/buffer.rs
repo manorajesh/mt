@@ -1,4 +1,4 @@
-pub struct Buffer {
+pub struct TextBuffer {
     pub buffer: Vec<u8>,
     pub top_row: usize, // Current top visible row in the viewport
 
@@ -11,7 +11,7 @@ pub struct Buffer {
     current_attributes: u8,
 }
 
-impl Buffer {
+impl TextBuffer {
     pub fn new(rows: usize, cols: usize) -> Self {
         Self {
             buffer: vec![0; rows * cols],
@@ -27,8 +27,7 @@ impl Buffer {
     /// Return the character at (row, col) in the *visible* region.
     /// Maps `row` to `top_row + row` in the buffer.
     pub fn get_cell(&self, row: usize, col: usize) -> u8 {
-        let real_row = self.top_row + row;
-        let real_index = real_row.saturating_mul(self.cols) + col;
+        let real_index = self.index(row, col);
 
         if real_index < self.buffer.len() {
             self.buffer[real_index]
@@ -40,9 +39,15 @@ impl Buffer {
 
     /// Compute a 1D index for the *current* cursor position in the buffer.
     /// That position is `top_row + cursor_y` from the top of the entire buffer.
+    #[inline]
     fn index(&self, row: usize, col: usize) -> usize {
         let real_row = self.top_row + row;
-        real_row.saturating_mul(self.cols) + col
+        let idx = real_row.saturating_mul(self.cols) + col;
+        if idx < self.buffer.len() {
+            idx
+        } else {
+            self.buffer.len() - 1
+        }
     }
 
     // Scroll the visible window “up” one line (if possible).
@@ -50,10 +55,7 @@ impl Buffer {
         // Only scroll up if there's more buffer data below the window.
         // Example check: top_row + rows < total number of lines in buffer
         // (i.e. we haven't scrolled all the way to the bottom).
-        let total_rows_in_buffer = self.buffer.len() / self.cols;
-        if self.top_row + self.rows < total_rows_in_buffer {
-            self.top_row += 1;
-        }
+        self.top_row += 1;
     }
 
     // Scroll the visible window “down” one line (if possible).
@@ -230,12 +232,14 @@ impl Buffer {
         // Extend buffer by one blank line (cols wide).
         self.buffer.extend_from_slice(&vec![32; self.cols]);
 
-        // Shift the window’s top row one down in the buffer.
-        self.top_row += 1;
-
         // Keep the cursor pinned to the bottom row of the visible region.
         // (Typical terminal behavior.)
-        self.cursor_y = self.rows - 1;
+        if self.cursor_y < self.rows - 1 {
+            self.cursor_y += 1;
+        } else {
+            // If we're already at the bottom, scroll the view up.
+            self.scroll_view_up();
+        }
     }
 
     pub fn add_new_line(&mut self) {
