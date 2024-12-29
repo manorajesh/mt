@@ -1,5 +1,4 @@
 use fontdue::Font;
-use image::GrayImage;
 use metal::{
     Device,
     MTLOrigin,
@@ -129,10 +128,10 @@ impl FontAtlas {
         texture.replace_region(region, 0, bitmap.as_ptr() as *const _, bytes_per_row as u64);
 
         // Optionally, save the atlas as a PNG for debugging
-        let image: GrayImage = image::ImageBuffer
-            ::from_raw(atlas_width as u32, atlas_height as u32, bitmap.clone())
-            .ok_or("Failed to create image buffer")?;
-        image.save("font_atlas.png").map_err(|e| e.to_string())?;
+        // let image: GrayImage = image::ImageBuffer
+        //     ::from_raw(atlas_width as u32, atlas_height as u32, bitmap.clone())
+        //     .ok_or("Failed to create image buffer")?;
+        // image.save("font_atlas.png").map_err(|e| e.to_string())?;
 
         Ok(FontAtlas {
             glyphs: glyph_infos,

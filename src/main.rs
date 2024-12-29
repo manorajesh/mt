@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod font_atlas;
 mod buffer;
 mod ansi_parser;
@@ -13,7 +16,7 @@ use winit::{
     event::{ Event, KeyEvent, Modifiers, WindowEvent },
     event_loop::{ ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy },
     keyboard::{ Key, NamedKey },
-    platform::macos::EventLoopBuilderExtMacOS,
+    platform::macos::{ EventLoopBuilderExtMacOS, WindowAttributesExtMacOS },
     raw_window_handle::{ HasWindowHandle, RawWindowHandle },
     window::{ Window, WindowAttributes },
 };
