@@ -1,5 +1,5 @@
 use crate::buffer::TextBuffer;
-use std::sync::{Arc, Mutex};
+use std::sync::{ Arc, Mutex };
 
 pub struct AnsiParser {
     state: ParserState,
@@ -124,10 +124,11 @@ impl AnsiParser {
                 }
             }
             ParserState::Osc => {
-                if byte == 0x07
-                    || (byte == 0x1b
-                        && !self.osc_bytes.is_empty()
-                        && self.osc_bytes.last() == Some(&0x5c))
+                if
+                    byte == 0x07 ||
+                    (byte == 0x1b &&
+                        !self.osc_bytes.is_empty() &&
+                        self.osc_bytes.last() == Some(&0x5c))
                 {
                     self.state = ParserState::Normal;
                     self.osc_bytes.clear();
@@ -136,10 +137,11 @@ impl AnsiParser {
                 }
             }
             ParserState::SosPmApc => {
-                if byte == 0x07
-                    || (byte == 0x1b
-                        && !self.osc_bytes.is_empty()
-                        && self.osc_bytes.last() == Some(&0x5c))
+                if
+                    byte == 0x07 ||
+                    (byte == 0x1b &&
+                        !self.osc_bytes.is_empty() &&
+                        self.osc_bytes.last() == Some(&0x5c))
                 {
                     self.state = ParserState::Normal;
                 }
@@ -177,14 +179,8 @@ impl AnsiParser {
             }
             0x48 | 0x66 => {
                 // H, f - Cursor Position
-                let row = self
-                    .params
-                    .first()
-                    .map_or(0, |&x| if x > 0 { x - 1 } else { 0 });
-                let col = self
-                    .params
-                    .get(1)
-                    .map_or(0, |&x| if x > 0 { x - 1 } else { 0 });
+                let row = self.params.first().map_or(0, |&x| if x > 0 { x - 1 } else { 0 });
+                let col = self.params.get(1).map_or(0, |&x| if x > 0 { x - 1 } else { 0 });
                 buffer.set_cursor_position(col, row);
             }
             0x4a => {
@@ -231,7 +227,7 @@ impl AnsiSimdParser {
                 let chunk_end = (i + 16).min(data.len());
                 let chunk: [u8; 16] = data[i..chunk_end].try_into().unwrap();
 
-                if unsafe { !chunk_has_control_chars(chunk) } {
+                if (unsafe { !chunk_has_control_chars(chunk) }) {
                     let mut buf = self.inner_parser.buffer.lock().unwrap();
                     buf.append_bytes(&chunk);
                     i += chunk.len();
@@ -264,7 +260,7 @@ unsafe fn chunk_has_control_chars(chunk: [u8; 16]) -> bool {
     // Combine all masks with OR operations
     let combined_mask = vorrq_u8(
         vorrq_u8(vorrq_u8(esc_mask, lf_mask), vorrq_u8(bs_mask, tab_mask)),
-        cr_mask,
+        cr_mask
     );
 
     // Split and sum

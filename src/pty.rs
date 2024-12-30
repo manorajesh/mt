@@ -1,14 +1,10 @@
 use std::ffi::CString;
-use std::os::fd::{IntoRawFd, RawFd};
+use std::os::fd::{ IntoRawFd, RawFd };
 use std::thread;
 
 use nix::fcntl::OFlag;
 use nix::pty::ForkptyResult;
-use nix::{
-    fcntl::{fcntl, F_SETFL},
-    pty::forkpty,
-    unistd::execv,
-};
+use nix::{ fcntl::{ fcntl, F_SETFL }, pty::forkpty, unistd::execv };
 use winit::event_loop::EventLoopProxy;
 
 use crate::ansi_parser::AnsiSimdParser;
@@ -22,7 +18,7 @@ impl Pty {
         proxy: EventLoopProxy<()>,
         mut parser: AnsiSimdParser,
         rows: usize,
-        cols: usize,
+        cols: usize
     ) -> Self {
         let winsize = nix::pty::Winsize {
             ws_row: rows as u16,
@@ -64,7 +60,7 @@ impl Pty {
                         let n = libc::read(
                             master_fd,
                             buf.as_mut_ptr().add(total_read) as *mut _,
-                            buf.len() - total_read,
+                            buf.len() - total_read
                         );
 
                         match n {
