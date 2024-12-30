@@ -1,18 +1,17 @@
-use std::os::fd::{ IntoRawFd, RawFd };
 use std::ffi::CString;
-use std::io::{ BufReader, Read };
+use std::os::fd::{IntoRawFd, RawFd};
 use std::thread;
-use std::os::fd::FromRawFd;
 
 use nix::fcntl::OFlag;
-use nix::ioctl_write_int;
 use nix::pty::ForkptyResult;
-use nix::{ fcntl::{ fcntl, F_SETFL }, pty::forkpty, unistd::execv, sys::termios::Termios };
+use nix::{
+    fcntl::{fcntl, F_SETFL},
+    pty::forkpty,
+    unistd::execv,
+};
 use winit::event_loop::EventLoopProxy;
-use winit::window::Window;
 
-use crate::ansi_parser::{ AnsiParser, AnsiSimdParser };
-use crate::CustomEvent;
+use crate::ansi_parser::AnsiSimdParser;
 
 pub struct Pty {
     fd: RawFd,
@@ -23,7 +22,7 @@ impl Pty {
         proxy: EventLoopProxy<()>,
         mut parser: AnsiSimdParser,
         rows: usize,
-        cols: usize
+        cols: usize,
     ) -> Self {
         let winsize = nix::pty::Winsize {
             ws_row: rows as u16,
@@ -65,7 +64,7 @@ impl Pty {
                         let n = libc::read(
                             master_fd,
                             buf.as_mut_ptr().add(total_read) as *mut _,
-                            buf.len() - total_read
+                            buf.len() - total_read,
                         );
 
                         match n {

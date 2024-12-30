@@ -1,24 +1,26 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-mod font_atlas;
-mod buffer;
 mod ansi_parser;
+mod buffer;
+mod font_atlas;
 mod pty;
 
-use cocoa::{ appkit::NSView, base::id as cocoa_id };
+use cocoa::{appkit::NSView, base::id as cocoa_id};
 use core_graphics_types::geometry::CGSize;
 use metal::*;
-use objc::{ rc::autoreleasepool, runtime::YES };
-use std::{ mem, sync::{ Arc, Mutex }, time::Instant };
+use objc::{rc::autoreleasepool, runtime::YES};
+use std::{
+    mem,
+    sync::{Arc, Mutex},
+};
 use winit::{
     application::ApplicationHandler,
-    event::{ Event, KeyEvent, Modifiers, WindowEvent },
-    event_loop::{ ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy },
-    keyboard::{ Key, NamedKey },
-    platform::macos::{ EventLoopBuilderExtMacOS, WindowAttributesExtMacOS },
-    raw_window_handle::{ HasWindowHandle, RawWindowHandle },
-    window::{ Window, WindowAttributes },
+    event::{KeyEvent, WindowEvent},
+    event_loop::{EventLoop, EventLoopProxy},
+    keyboard::{Key, NamedKey},
+    raw_window_handle::{HasWindowHandle, RawWindowHandle},
+    window::{Window, WindowAttributes},
 };
 
 use font_atlas::FontAtlas;
@@ -26,7 +28,7 @@ use font_atlas::FontAtlas;
 #[repr(C)]
 #[derive(Clone)]
 pub struct Vertex {
-    position: [f32; 2], // Position in normalized device coordinates (NDC)
+    position: [f32; 2],   // Position in normalized device coordinates (NDC)
     tex_coords: [f32; 2], // Texture coordinates (u, v)
 }
 
@@ -63,28 +65,27 @@ impl TerminalView {
         let initial_vertex_count = 100 * 80 * 6;
         let vertex_buffer = Self::create_empty_buffer(&device, initial_vertex_count);
 
-        return Self {
+        Self {
             device,
             command_queue,
             font_atlas,
-            vertex_buffer: vertex_buffer,
-            pipeline_state: pipeline_state,
-            sampler_state: sampler_state,
+            vertex_buffer,
+            pipeline_state,
+            sampler_state,
             window_width: None,
             window_height: None,
-            buffer: buffer,
-            pty: pty,
+            buffer,
+            pty,
             max_vertex_count: initial_vertex_count,
             window: None,
             layer: None,
-        };
+        }
     }
 
     fn create_pipeline_state(device: &Device) -> RenderPipelineState {
         // Load the compiled shader library
-        let library_path = std::path::PathBuf
-            ::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/shader.metallib");
+        let library_path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/shader.metallib");
         let library = device
             .new_library_with_file(library_path)
             .expect("Failed to load shader library");
@@ -107,7 +108,10 @@ impl TerminalView {
             .set_pixel_format(MTLPixelFormat::BGRA8Unorm);
 
         // Enable blending on the color attachment
-        let color_attachment = pipeline_state_descriptor.color_attachments().object_at(0).unwrap();
+        let color_attachment = pipeline_state_descriptor
+            .color_attachments()
+            .object_at(0)
+            .unwrap();
         color_attachment.set_blending_enabled(true);
 
         // Configure the blend operations and factors
@@ -122,18 +126,38 @@ impl TerminalView {
         let vertex_descriptor = VertexDescriptor::new();
 
         // Position attribute
-        vertex_descriptor.attributes().object_at(0).unwrap().set_format(MTLVertexFormat::Float2);
-        vertex_descriptor.attributes().object_at(0).unwrap().set_offset(0);
-        vertex_descriptor.attributes().object_at(0).unwrap().set_buffer_index(0);
+        vertex_descriptor
+            .attributes()
+            .object_at(0)
+            .unwrap()
+            .set_format(MTLVertexFormat::Float2);
+        vertex_descriptor
+            .attributes()
+            .object_at(0)
+            .unwrap()
+            .set_offset(0);
+        vertex_descriptor
+            .attributes()
+            .object_at(0)
+            .unwrap()
+            .set_buffer_index(0);
 
         // Texture Coordinates attribute
-        vertex_descriptor.attributes().object_at(1).unwrap().set_format(MTLVertexFormat::Float2);
+        vertex_descriptor
+            .attributes()
+            .object_at(1)
+            .unwrap()
+            .set_format(MTLVertexFormat::Float2);
         vertex_descriptor
             .attributes()
             .object_at(1)
             .unwrap()
             .set_offset(mem::size_of::<[f32; 2]>() as u64);
-        vertex_descriptor.attributes().object_at(1).unwrap().set_buffer_index(0);
+        vertex_descriptor
+            .attributes()
+            .object_at(1)
+            .unwrap()
+            .set_buffer_index(0);
 
         // Layout for buffer 0
         vertex_descriptor
@@ -146,16 +170,19 @@ impl TerminalView {
             .object_at(0)
             .unwrap()
             .set_step_function(MTLVertexStepFunction::PerVertex);
-        vertex_descriptor.layouts().object_at(0).unwrap().set_step_rate(1);
+        vertex_descriptor
+            .layouts()
+            .object_at(0)
+            .unwrap()
+            .set_step_rate(1);
 
-        pipeline_state_descriptor.set_vertex_descriptor(Some(&vertex_descriptor));
+        pipeline_state_descriptor.set_vertex_descriptor(Some(vertex_descriptor));
 
         // Set up blending (optional for transparent textures)
-        let pipeline_state = device
-            .new_render_pipeline_state(&pipeline_state_descriptor)
-            .expect("Failed to create pipeline state");
 
-        pipeline_state
+        device
+            .new_render_pipeline_state(&pipeline_state_descriptor)
+            .expect("Failed to create pipeline state")
     }
 
     fn create_sampler_state(device: &Device) -> SamplerState {
@@ -164,12 +191,12 @@ impl TerminalView {
         descriptor.set_mag_filter(MTLSamplerMinMagFilter::Linear);
         descriptor.set_address_mode_s(MTLSamplerAddressMode::ClampToEdge);
         descriptor.set_address_mode_t(MTLSamplerAddressMode::ClampToEdge);
-        return device.new_sampler(&descriptor);
+        device.new_sampler(&descriptor)
     }
 
     fn create_empty_buffer(device: &Device, vertex_count: usize) -> Buffer {
         let buffer_size = (vertex_count * mem::size_of::<Vertex>()) as NSUInteger;
-        return device.new_buffer(buffer_size, MTLResourceOptions::StorageModeShared);
+        device.new_buffer(buffer_size, MTLResourceOptions::StorageModeShared)
     }
 
     fn create_font_atlas(device: &Device) -> FontAtlas {
@@ -177,17 +204,14 @@ impl TerminalView {
 
         let data = include_bytes!("../fonts/monaco.ttf");
 
-        let font_atlas = FontAtlas::new(device, data, font_size).expect(
-            "Failed to create font atlas"
-        );
-        return font_atlas;
+        FontAtlas::new(device, data, font_size).expect("Failed to create font atlas")
     }
 
     pub fn generate_quad(
         &self,
         c: char,
         screen_position: [f32; 2],
-        scale: [f32; 2]
+        scale: [f32; 2],
     ) -> Option<([Vertex; 6], f32)> {
         // Retrieve glyph information
         let glyph_info = match self.font_atlas.glyph(c) {
@@ -205,10 +229,8 @@ impl TerminalView {
         // Position in pixels
         let line_height = self.font_atlas.line_height;
         let x = screen_position[0] + glyph_info.offset.0 * scale[0];
-        let y =
-            screen_position[1] +
-            line_height -
-            (glyph_info.offset.1 * scale[1] + glyph_info.size.1 * scale[1]);
+        let y = screen_position[1] + line_height
+            - (glyph_info.offset.1 * scale[1] + glyph_info.size.1 * scale[1]);
 
         // Convert pixel positions to NDC
         let ndc_x = (x / self.window_width.unwrap()) * 2.0 - 1.0;
@@ -230,14 +252,31 @@ impl TerminalView {
         Some((
             [
                 // First triangle
-                Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
-                Vertex { position: bottom_left, tex_coords: [tex_min[0], tex_max[1]] },
-                Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
-
+                Vertex {
+                    position: top_left,
+                    tex_coords: [tex_min[0], tex_min[1]],
+                },
+                Vertex {
+                    position: bottom_left,
+                    tex_coords: [tex_min[0], tex_max[1]],
+                },
+                Vertex {
+                    position: bottom_right,
+                    tex_coords: [tex_max[0], tex_max[1]],
+                },
                 // Second triangle
-                Vertex { position: top_left, tex_coords: [tex_min[0], tex_min[1]] },
-                Vertex { position: bottom_right, tex_coords: [tex_max[0], tex_max[1]] },
-                Vertex { position: top_right, tex_coords: [tex_max[0], tex_min[1]] },
+                Vertex {
+                    position: top_left,
+                    tex_coords: [tex_min[0], tex_min[1]],
+                },
+                Vertex {
+                    position: bottom_right,
+                    tex_coords: [tex_max[0], tex_max[1]],
+                },
+                Vertex {
+                    position: top_right,
+                    tex_coords: [tex_max[0], tex_min[1]],
+                },
             ],
             glyph_info.advance,
         ))
@@ -307,7 +346,10 @@ impl TerminalView {
 
         // Create a render pass descriptor
         let render_pass_descriptor = RenderPassDescriptor::new();
-        let color_attachment = render_pass_descriptor.color_attachments().object_at(0).unwrap();
+        let color_attachment = render_pass_descriptor
+            .color_attachments()
+            .object_at(0)
+            .unwrap();
         color_attachment.set_texture(Some(drawable.texture()));
         color_attachment.set_load_action(MTLLoadAction::Clear);
         color_attachment.set_clear_color(MTLClearColor::new(0.0, 0.0, 0.0, 1.0)); // Dark background
@@ -317,7 +359,7 @@ impl TerminalView {
         let command_buffer = self.command_queue.new_command_buffer();
 
         // Create a render command encoder
-        let render_encoder = command_buffer.new_render_command_encoder(&render_pass_descriptor);
+        let render_encoder = command_buffer.new_render_command_encoder(render_pass_descriptor);
 
         // Set the pipeline state
         render_encoder.set_render_pipeline_state(&self.pipeline_state);
@@ -361,7 +403,7 @@ impl ApplicationHandler for TerminalView {
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
         _window_id: winit::window::WindowId,
-        event: WindowEvent
+        event: WindowEvent,
     ) {
         // Event::AboutToWait => window.request_redraw(),
         match event {
@@ -384,7 +426,10 @@ impl ApplicationHandler for TerminalView {
                 self.max_vertex_count = vertex_count;
                 self.vertex_buffer = TerminalView::create_empty_buffer(&self.device, vertex_count);
 
-                self.window.as_mut().unwrap().set_title(&format!("mt - {}x{}", rows, cols));
+                self.window
+                    .as_mut()
+                    .unwrap()
+                    .set_title(&format!("mt - {}x{}", rows, cols));
 
                 self.buffer.lock().unwrap().resize(rows, cols);
                 self.pty.resize(rows, cols);
@@ -397,21 +442,29 @@ impl ApplicationHandler for TerminalView {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 match event {
-                    KeyEvent { logical_key: Key::Character(c), state, .. } => if
-                        state == winit::event::ElementState::Pressed
-                    {
-                        self.pty.write(c.as_bytes());
+                    KeyEvent {
+                        logical_key: Key::Character(c),
+                        state,
+                        ..
+                    } => {
+                        if state == winit::event::ElementState::Pressed {
+                            self.pty.write(c.as_bytes());
+                        }
                     }
                     // enter key
-                    KeyEvent { logical_key: Key::Named(c), state, .. } => if
-                        state == winit::event::ElementState::Pressed
-                    {
-                        match c {
-                            NamedKey::Enter => self.pty.write(b"\n"),
-                            NamedKey::Tab => self.pty.write(b"\t"),
-                            NamedKey::Space => self.pty.write(b" "),
-                            NamedKey::Backspace => self.pty.write(b"\x7f"),
-                            _ => (),
+                    KeyEvent {
+                        logical_key: Key::Named(c),
+                        state,
+                        ..
+                    } => {
+                        if state == winit::event::ElementState::Pressed {
+                            match c {
+                                NamedKey::Enter => self.pty.write(b"\n"),
+                                NamedKey::Tab => self.pty.write(b"\t"),
+                                NamedKey::Space => self.pty.write(b" "),
+                                NamedKey::Backspace => self.pty.write(b"\x7f"),
+                                _ => (),
+                            }
                         }
                     }
                     _ => (),

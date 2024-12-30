@@ -1,12 +1,6 @@
 use fontdue::Font;
 use metal::{
-    Device,
-    MTLOrigin,
-    MTLPixelFormat,
-    MTLRegion,
-    MTLSize,
-    MTLTextureType,
-    MTLTextureUsage,
+    Device, MTLOrigin, MTLPixelFormat, MTLRegion, MTLSize, MTLTextureType, MTLTextureUsage,
     TextureDescriptor,
 };
 use std::collections::HashMap;
@@ -14,9 +8,9 @@ use std::collections::HashMap;
 pub struct GlyphInfo {
     pub char: char,
     pub tex_coords: [f32; 4], // [u_min, v_min, u_max, v_max]
-    pub offset: (f32, f32), // (x, y) offset relative to baseline
-    pub size: (f32, f32), // (width, height) of the glyph
-    pub advance: f32, // Advance width for cursor movement
+    pub offset: (f32, f32),   // (x, y) offset relative to baseline
+    pub size: (f32, f32),     // (width, height) of the glyph
+    pub advance: f32,         // Advance width for cursor movement
 }
 
 pub struct FontAtlas {
@@ -30,9 +24,8 @@ impl FontAtlas {
     /// Creates a new FontAtlas from the given font data and scale using fontdue.
     pub fn new(device: &Device, font_data: &[u8], font_size: f32) -> Result<Self, String> {
         // Initialize fontdue font
-        let font = Font::from_bytes(font_data, fontdue::FontSettings::default()).map_err(|_|
-            "Error loading font with fontdue".to_string()
-        )?;
+        let font = Font::from_bytes(font_data, fontdue::FontSettings::default())
+            .map_err(|_| "Error loading font with fontdue".to_string())?;
 
         // Define printable ASCII range
         let char_set =
@@ -88,17 +81,20 @@ impl FontAtlas {
                 ((y + height) as f32) / (atlas_height as f32),
             ];
 
-            let offset = (metrics.bounds.xmin as f32, metrics.bounds.ymin as f32);
+            let offset = (metrics.bounds.xmin, metrics.bounds.ymin);
             let size = (width as f32, height as f32);
             let advance = metrics.advance_width;
 
-            glyph_infos.insert(c, GlyphInfo {
-                char: c,
-                tex_coords,
-                offset,
-                size,
-                advance,
-            });
+            glyph_infos.insert(
+                c,
+                GlyphInfo {
+                    char: c,
+                    tex_coords,
+                    offset,
+                    size,
+                    advance,
+                },
+            );
 
             x += width + 1; // 1 pixel padding
         }
