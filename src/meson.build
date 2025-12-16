@@ -1,1 +1,0 @@
-executable('mt', ['main.cpp'])
