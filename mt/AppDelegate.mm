@@ -1,3 +1,10 @@
+//
+//  AppDelegate.mm
+//  mt
+//
+//  Created by Mano Rajesh on 12/9/25.
+//
+
 #import "AppDelegate.h"
 #import "TerminalView.h"
 #import "../mtCore/mtCore.h"

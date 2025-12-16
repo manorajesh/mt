@@ -1,5 +1,5 @@
 //
-//  TerminalView.m
+//  TerminalView.mm
 //  mt
 //
 //  Created by Mano Rajesh on 12/9/25.
