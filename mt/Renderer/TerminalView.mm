@@ -6,7 +6,7 @@
 //
 
 #import "TerminalView.h"
-#import "../mtCore/mtCore.h"
+#import "../../mtCore/mtCore.h"
 #import <os/lock.h>
 #import <simd/simd.h>
 #import <CoreText/CoreText.h>

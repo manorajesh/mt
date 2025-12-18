@@ -6,7 +6,7 @@
 //
 
 #import "AppDelegate.h"
-#import "TerminalView.h"
+#import "Renderer/TerminalView.h"
 #import "../mtCore/mtCore.h"
 
 @implementation AppDelegate {
