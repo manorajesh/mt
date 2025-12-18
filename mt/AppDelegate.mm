@@ -35,8 +35,11 @@
     view.core = core;
     [window setContentView:view];
 
-    core->onOutput = [&](const char* buf, size_t len) {
-        fwrite(buf, 1, len, stdout); // for now
+    __weak TerminalView *weakView = view;
+    core->onOutput = [weakView](const char* buf, size_t len) {
+        TerminalView *strongView = weakView;
+        if (!strongView) return;
+        [strongView appendOutput:buf length:len];
     };
 
     [window makeFirstResponder:view];

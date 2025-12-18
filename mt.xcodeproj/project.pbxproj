@@ -8,11 +8,15 @@
 
 /* Begin PBXBuildFile section */
 		3FB1E2452EF0F87700129CB6 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FB1E2442EF0F87700129CB6 /* Cocoa.framework */; };
+		3FB1E2972EF3E26000129CB6 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FB1E2962EF3E26000129CB6 /* Metal.framework */; };
+		3FB1E2EB2EF3E44000129CB6 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3FB1E2EA2EF3E44000129CB6 /* MetalKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		3FB1E2252EF0F68400129CB6 /* mt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = mt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FB1E2442EF0F87700129CB6 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		3FB1E2962EF3E26000129CB6 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		3FB1E2EA2EF3E44000129CB6 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,6 +37,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FB1E2EB2EF3E44000129CB6 /* MetalKit.framework in Frameworks */,
+				3FB1E2972EF3E26000129CB6 /* Metal.framework in Frameworks */,
 				3FB1E2452EF0F87700129CB6 /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -61,6 +67,8 @@
 		3FB1E2432EF0F87700129CB6 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				3FB1E2EA2EF3E44000129CB6 /* MetalKit.framework */,
+				3FB1E2962EF3E26000129CB6 /* Metal.framework */,
 				3FB1E2442EF0F87700129CB6 /* Cocoa.framework */,
 			);
 			name = Frameworks;
