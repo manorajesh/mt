@@ -20,71 +20,6 @@ using namespace simd;
 
 namespace {
 
-static NSString *const kShaderSource = @"#include <metal_stdlib>\n"
-"using namespace metal;\n"
-"\n"
-"struct CellInstance {\n"
-"  ushort col;\n"
-"  ushort row;\n"
-"  uchar  glyph;\n"
-"  uchar  flags;\n"
-"};\n"
-"\n"
-"struct Uniforms {\n"
-"  float2 viewportPx;\n"
-"  float2 cellPx;\n"
-"  float2 atlasPx;\n"
-"  uint   atlasCols;\n"
-"  uint   firstChar;\n"
-"  float2 pad;\n"
-"};\n"
-"\n"
-"struct VSOut {\n"
-"  float4 position [[position]];\n"
-"  float2 uv;\n"
-"};\n"
-"\n"
-"vertex VSOut vertex_main(uint vid [[vertex_id]],\n"
-"                         uint iid [[instance_id]],\n"
-"                         const device CellInstance* inst [[buffer(0)]],\n"
-"                         constant Uniforms& u [[buffer(1)]]) {\n"
-"  // Local quad in [0,1] space (two triangles)\n"
-"  const float2 q[6] = { float2(0,0), float2(1,0), float2(0,1), float2(1,0), float2(1,1), float2(0,1) };\n"
-"\n"
-"  CellInstance ci = inst[iid];\n"
-"\n"
-"  float2 px0 = float2(ci.col, ci.row) * u.cellPx;\n"
-"  float2 px  = px0 + q[vid] * u.cellPx;\n"
-"\n"
-"  // pixel -> NDC\n"
-"  float2 ndc;\n"
-"  ndc.x = (px.x / u.viewportPx.x) * 2.0 - 1.0;\n"
-"  ndc.y = 1.0 - (px.y / u.viewportPx.y) * 2.0;\n"
-"\n"
-"  // glyph -> atlas cell\n"
-"  uint g = uint(ci.glyph);\n"
-"  uint idx = (g >= u.firstChar) ? (g - u.firstChar) : 0;\n"
-"  uint gx = idx % u.atlasCols;\n"
-"  uint gy = idx / u.atlasCols;\n"
-"\n"
-"  float2 cellUV = u.cellPx / u.atlasPx;\n"
-"  float2 uv0 = float2(float(gx), float(gy)) * cellUV;\n"
-"  float2 uv  = uv0 + q[vid] * cellUV;\n"
-"\n"
-"  VSOut out;\n"
-"  out.position = float4(ndc, 0.0, 1.0);\n"
-"  out.uv = uv;\n"
-"  return out;\n"
-"}\n"
-"\n"
-"fragment float4 fragment_main(VSOut in [[stage_in]], texture2d<float> atlas [[texture(0)]]) {\n"
-"  constexpr sampler s(address::clamp_to_edge, filter::linear);\n"
-"  float4 texel = atlas.sample(s, in.uv);\n"
-"  float a = texel.a;\n"
-"  float3 fg = float3(0.82, 0.98, 0.82);\n"
-"  return float4(fg * a, a);\n"
-"}\n";
-
 constexpr size_t kMaxLogBytes = 1 << 20;
 constexpr uint8_t kSpace = ' ';
 
@@ -261,9 +196,9 @@ struct UniformsCPU {
 
 - (void)buildPipeline {
     NSError *error = nil;
-    id<MTLLibrary> lib = [self.device newLibraryWithSource:kShaderSource options:nil error:&error];
-    if (!lib || error) {
-        NSLog(@"Metal library error: %@", error);
+    id<MTLLibrary> lib = [self.device newDefaultLibrary];
+    if (!lib) {
+        NSLog(@"Failed to load default Metal library");
         return;
     }
     
