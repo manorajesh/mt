@@ -2,63 +2,61 @@
 using namespace metal;
 
 struct CellInstance {
-  ushort col;
-  ushort row;
-  uchar  glyph;
-  uchar  flags;
+    ushort col;
+    ushort row;
+    uint glyph;
+    uint attr;
 };
 
 struct Uniforms {
-  float2 viewportPx;
-  float2 cellPx;
-  float2 atlasPx;
-  uint   atlasCols;
-  uint   firstChar;
-  float2 pad;
+    float2 viewportPx;
+    float2 cellPx;
+    float2 atlasPx;
+    float2 atlasCellPx;
+    uint atlasCols;
+    uint firstChar;
 };
 
 struct VSOut {
-  float4 position [[position]];
-  float2 uv;
+    float4 pos [[position]];
+    float2 uv;
 };
 
-vertex VSOut vertex_main(uint vid [[vertex_id]],
-                         uint iid [[instance_id]],
-                         const device CellInstance* inst [[buffer(0)]],
-                         constant Uniforms& u [[buffer(1)]]) {
-  // Local quad in [0,1] space (two triangles)
-  const float2 q[6] = { float2(0,0), float2(1,0), float2(0,1), float2(1,0), float2(1,1), float2(0,1) };
-
-  CellInstance ci = inst[iid];
-
-  float2 px0 = float2(ci.col, ci.row) * u.cellPx;
-  float2 px  = px0 + q[vid] * u.cellPx;
-
-  // pixel -> NDC
-  float2 ndc;
-  ndc.x = (px.x / u.viewportPx.x) * 2.0 - 1.0;
-  ndc.y = 1.0 - (px.y / u.viewportPx.y) * 2.0;
-
-  // glyph -> atlas cell
-  uint g = uint(ci.glyph);
-  uint idx = (g >= u.firstChar) ? (g - u.firstChar) : 0;
-  uint gx = idx % u.atlasCols;
-  uint gy = idx / u.atlasCols;
-
-  float2 cellUV = u.cellPx / u.atlasPx;
-  float2 uv0 = float2(float(gx), float(gy)) * cellUV;
-  float2 uv  = uv0 + q[vid] * cellUV;
-
-  VSOut out;
-  out.position = float4(ndc, 0.0, 1.0);
-  out.uv = uv;
-  return out;
+vertex VSOut terminal_vertex(
+                             uint vid [[vertex_id]],
+                             uint iid [[instance_id]],
+                             constant CellInstance* inst [[buffer(0)]],
+                             constant Uniforms& u [[buffer(1)]]
+                             ) {
+    const float2 quad[6] = {
+        {0,0},{1,0},{0,1},{1,0},{1,1},{0,1}
+    };
+    
+    CellInstance c = inst[iid];
+    float2 p = quad[vid];
+    
+    float2 px = float2(c.col, c.row) * u.cellPx + p * u.cellPx;
+    float2 ndc = (px / u.viewportPx) * 2.0 - 1.0;
+    ndc.y = -ndc.y;
+    
+    uint g = c.glyph - u.firstChar;
+    uint gx = g % u.atlasCols;
+    uint gy = g / u.atlasCols;
+    
+    float2 glyphPx =
+    float2(gx, gy) * u.atlasCellPx + p * u.atlasCellPx;
+    
+    float2 uv = glyphPx / u.atlasPx;
+    
+    VSOut o;
+    o.pos = float4(ndc, 0, 1);
+    o.uv = uv;
+    return o;
 }
 
-fragment float4 fragment_main(VSOut in [[stage_in]], texture2d<float> atlas [[texture(0)]]) {
-  constexpr sampler s(address::clamp_to_edge, filter::linear);
-  float4 texel = atlas.sample(s, in.uv);
-  float a = texel.a;
-  float3 fg = float3(0.82, 0.98, 0.82);
-  return float4(fg * a, a);
+fragment float4 terminal_fragment(VSOut in [[stage_in]],
+                                  texture2d<float> atlas [[texture(0)]]) {
+    constexpr sampler s(filter::linear);
+    float4 c = atlas.sample(s, in.uv);
+    return c;
 }
