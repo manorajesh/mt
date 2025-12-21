@@ -56,7 +56,7 @@ vertex VSOut terminal_vertex(
 
 fragment float4 terminal_fragment(VSOut in [[stage_in]],
                                   texture2d<float> atlas [[texture(0)]]) {
-    constexpr sampler s(filter::linear);
+    constexpr sampler s(filter::nearest);
     float4 c = atlas.sample(s, in.uv);
     return c;
 }

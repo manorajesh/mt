@@ -88,8 +88,7 @@ typedef struct {
     _cols = backend->cols();
     _rows = backend->rows();
     
-    _cellW = 9.0f;   // must match atlas build
-    _cellH = 18.0f;
+    // _cellW and _cellH are already set by buildAtlas() - don't override!
     
     [_rowBuffers removeAllObjects];
     [_rowCounts removeAllObjects];
